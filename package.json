@@ -11,5 +11,9 @@
     ],
     "author": "",
     "license": "MIT",
-    "dependencies": {}
+    "dependencies": {},
+    "devDependencies": {
+        "jest": "^29.7.0",
+        "prettier": "^3.3.3"
+    }
 }
