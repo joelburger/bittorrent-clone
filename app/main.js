@@ -1,5 +1,6 @@
 const process = require('process');
 const util = require('util');
+const { decodeBencode } = require('./decoder');
 
 function main() {
   const command = process.argv[2];
