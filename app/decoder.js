@@ -54,6 +54,10 @@ function parseLists(bencodedValue) {
         cursor = newCursor;
         values.push(value);
       }
+      if (currentChar === 'e') {
+        // terminator char found at the end of the list
+        cursor++;
+      }
     } else {
       const { value, newCursor } = parseString(bencodedValue, cursor);
       cursor = newCursor;
@@ -67,13 +71,14 @@ function decodeBencode(bencodedValue) {
   // Check if the first character is a digit
 
   const [firstCharacter] = bencodedValue;
+  const lastCharacter = bencodedValue.charAt(bencodedValue.length - 1);
 
   if (isNaN(firstCharacter)) {
     if (firstCharacter === 'i') {
       const { value } = parseNumber(bencodedValue, 0);
       return value;
     }
-    if (firstCharacter === 'l') {
+    if (firstCharacter === 'l' && lastCharacter === 'e') {
       return parseLists(bencodedValue);
     }
 
