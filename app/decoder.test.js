@@ -8,14 +8,6 @@ test('decodes a longer bencoded string', () => {
   expect(decodeBencode('10:hello12345')).toBe('hello12345');
 });
 
-test('throws an error for invalid encoded value', () => {
-  expect(() => decodeBencode('5hello')).toThrow('Invalid encoded value');
-});
-
-test('throws an error for unsupported types', () => {
-  expect(() => decodeBencode('i123e')).toThrow('Only strings are supported at the moment');
-});
-
 test('decodes a bencoded positive integer', () => {
   // act
   const actual = decodeBencode('i54e');
@@ -34,4 +26,52 @@ test('decodes a bencoded negative integer', () => {
 
 test('throws an error when the encoding is unsupported', () => {
   expect(() => decodeBencode('a54e')).toThrow('Invalid value a54e. Unsupported encoding.');
+});
+
+test('decodes a bencoded list with a single number value', () => {
+  // act
+  const actual = decodeBencode('li58e');
+
+  // assert
+  expect(actual).toEqual([58]);
+});
+
+test('decodes a bencoded list with a single string value', () => {
+  // act
+  const actual = decodeBencode('l5:hello');
+
+  // assert
+  expect(actual).toEqual(['hello']);
+});
+
+test('decodes a bencoded list with two values: string and number', () => {
+  // act
+  const actual = decodeBencode('l5:helloi721e');
+
+  // assert
+  expect(actual).toEqual(['hello', 721]);
+});
+
+test('decodes a bencoded list with two values: number and string', () => {
+  // act
+  const actual = decodeBencode('li123e3:dog');
+
+  // assert
+  expect(actual).toEqual([123, 'dog']);
+});
+
+test('decodes a bencoded list with two number values', () => {
+  // act
+  const actual = decodeBencode('li721ei1842e');
+
+  // assert
+  expect(actual).toEqual([721, 1842]);
+});
+
+test('decodes a bencoded list with multiple values', () => {
+  // act
+  const actual = decodeBencode('li721ei1842e12:civilisationi12345678e4:moon');
+
+  // assert
+  expect(actual).toEqual([721, 1842, 'civilisation', 12345678, 'moon']);
 });

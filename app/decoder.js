@@ -1,6 +1,68 @@
-// Examples:
-// - decodeBencode("5:hello") -> "hello"
-// - decodeBencode("10:hello12345") -> "hello12345"
+function parseNumber(bencodedValue, offset) {
+  let cursor = offset;
+
+  // confirm first characters is the letter i
+  const firstCharacter = bencodedValue.charAt(cursor);
+  cursor++;
+
+  if (firstCharacter !== 'i') {
+    throw new Error('Invalid number encoding. Invalid first character');
+  }
+
+  const terminatorPosition = bencodedValue.indexOf('e', cursor);
+
+  if (terminatorPosition === -1) {
+    throw new Error('Invalid number encoding. Missing terminator character');
+  }
+
+  const raw = bencodedValue.substring(cursor, terminatorPosition);
+  cursor += raw.length + 1;
+
+  return { value: Number(raw), newCursor: cursor };
+}
+
+function parseString(bencodedValue, offset) {
+  let cursor = offset;
+  const delimiterPosition = bencodedValue.indexOf(':', cursor);
+
+  if (delimiterPosition === -1) {
+    throw new Error('Invalid string encoding. Missing colon delimiter.');
+  }
+
+  const stringLength = Number(bencodedValue.substring(cursor, delimiterPosition));
+  cursor += stringLength.toString().length + 1;
+
+  const value = bencodedValue.substring(cursor, cursor + stringLength);
+  cursor += value.length;
+
+  return { value, newCursor: cursor };
+}
+
+function parseLists(bencodedValue) {
+  let cursor = 0;
+  cursor++; // skip first character since we've already read it previously
+
+  // determine if this is a string or an integer
+  const values = [];
+
+  do {
+    const currentChar = bencodedValue.charAt(cursor);
+
+    if (isNaN(currentChar)) {
+      if (currentChar === 'i') {
+        const { value, newCursor } = parseNumber(bencodedValue, cursor);
+        cursor = newCursor;
+        values.push(value);
+      }
+    } else {
+      const { value, newCursor } = parseString(bencodedValue, cursor);
+      cursor = newCursor;
+      values.push(value);
+    }
+  } while (cursor < bencodedValue.length);
+  return values;
+}
+
 function decodeBencode(bencodedValue) {
   // Check if the first character is a digit
 
@@ -8,16 +70,17 @@ function decodeBencode(bencodedValue) {
 
   if (isNaN(firstCharacter)) {
     if (firstCharacter === 'i') {
-      return Number(bencodedValue.substring(1, bencodedValue.length - 1));
+      const { value } = parseNumber(bencodedValue, 0);
+      return value;
     }
-    throw new Error(`Invalid value ${bencodedValue}. Unsupported encoding.`);
-  } else {
-    const firstColonIndex = bencodedValue.indexOf(':');
-    if (firstColonIndex === -1) {
-      throw new Error('Invalid encoded value');
+    if (firstCharacter === 'l') {
+      return parseLists(bencodedValue);
     }
 
-    return bencodedValue.substr(firstColonIndex + 1);
+    throw new Error(`Invalid value ${bencodedValue}. Unsupported encoding.`);
+  } else {
+    const { value } = parseString(bencodedValue, 0);
+    return value;
   }
 }
 
