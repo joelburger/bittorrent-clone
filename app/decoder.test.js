@@ -91,3 +91,19 @@ test('decodes a nested list', () => {
   // assert
   expect(actual).toEqual([[816, 'blueberry']]);
 });
+
+test('decodes a dictionary', () => {
+  // act
+  const actual = decodeBencode('d3:foo3:bar5:helloi52ee');
+
+  // assert
+  expect(actual).toEqual({ foo: 'bar', hello: 52 });
+});
+
+test('decodes a dictionary with a nested dictionary', () => {
+  // act
+  const actual = decodeBencode('d10:inner_dictd4:key16:value14:key2i42e8:list_keyl5:item15:item2i3eeee');
+
+  // assert
+  expect(actual).toEqual({ inner_dict: { key1: 'value1', key2: 42, list_key: ['item1', 'item2', 3] } });
+});

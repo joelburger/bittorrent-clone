@@ -1,4 +1,4 @@
-function parseNumber(bencodedValue, offset) {
+function parseInteger(bencodedValue, offset) {
   let cursor = offset;
 
   // confirm first characters is the letter i
@@ -38,11 +38,10 @@ function parseString(bencodedValue, offset) {
   return { value, newCursor: cursor };
 }
 
-function parseLists(bencodedValue, offset = 0) {
+function parseList(bencodedValue, offset = 0) {
   let cursor = offset;
   cursor++; // skip first character since we've already read it previously
 
-  // determine if this is a string or an integer
   const values = [];
 
   do {
@@ -50,14 +49,14 @@ function parseLists(bencodedValue, offset = 0) {
 
     if (isNaN(currentChar)) {
       if (currentChar === 'i') {
-        const { value, newCursor } = parseNumber(bencodedValue, cursor);
+        const { value, newCursor } = parseInteger(bencodedValue, cursor);
         cursor = newCursor;
         values.push(value);
       }
       if (currentChar === 'l') {
-        const { values: nestedValues, newCursor } = parseLists(bencodedValue, cursor);
-        values.push(nestedValues);
+        const { values: nestedValues, newCursor } = parseList(bencodedValue, cursor);
         cursor = newCursor;
+        values.push(nestedValues);
       }
 
       if (currentChar === 'e') {
@@ -75,17 +74,75 @@ function parseLists(bencodedValue, offset = 0) {
   return { values, newCursor: cursor };
 }
 
+function parseDictionary(bencodedValue, offset) {
+  let cursor = offset;
+  cursor++; // skip first character since we've already read it previously
+
+  const values = {};
+  do {
+    let currentChar = bencodedValue.charAt(cursor);
+
+    // get key
+    let dictionaryKey;
+    if (isNaN(currentChar)) {
+      if (currentChar === 'e') {
+        cursor++;
+        break;
+      } else {
+        throw new Error(`Invalid key encoding found for dictionary: ${bencodedValue}`);
+      }
+    } else {
+      const { value, newCursor } = parseString(bencodedValue, cursor);
+      cursor = newCursor;
+      dictionaryKey = value;
+    }
+
+    currentChar = bencodedValue.charAt(cursor);
+
+    let dictionaryValue;
+    if (isNaN(currentChar)) {
+      if (currentChar === 'i') {
+        const { value, newCursor } = parseInteger(bencodedValue, cursor);
+        cursor = newCursor;
+        dictionaryValue = value;
+      } else if (currentChar === 'l') {
+        const { values, newCursor } = parseList(bencodedValue, cursor);
+        cursor = newCursor;
+        dictionaryValue = values;
+      } else if (currentChar === 'd') {
+        const { values, newCursor } = parseDictionary(bencodedValue, cursor);
+        cursor = newCursor;
+        dictionaryValue = values;
+      } else {
+        throw new Error(`Invalid value encoding found for dictionary: ${bencodedValue}`);
+      }
+    } else {
+      const { value, newCursor } = parseString(bencodedValue, cursor);
+      cursor = newCursor;
+      dictionaryValue = value;
+    }
+    values[dictionaryKey] = dictionaryValue;
+  } while (cursor < bencodedValue.length);
+  return { values, newCursor: cursor };
+}
+
 function decodeBencode(bencodedValue) {
   const [firstCharacter] = bencodedValue;
   const lastCharacter = bencodedValue.charAt(bencodedValue.length - 1);
 
   if (isNaN(firstCharacter)) {
     if (firstCharacter === 'i') {
-      const { value } = parseNumber(bencodedValue, 0);
+      const { value } = parseInteger(bencodedValue, 0);
       return value;
     }
     if (firstCharacter === 'l' && lastCharacter === 'e') {
-      const { values } = parseLists(bencodedValue, 0);
+      const { values } = parseList(bencodedValue, 0);
+      return values;
+    }
+
+    if (firstCharacter === 'd') {
+      const { values } = parseDictionary(bencodedValue, 0);
+
       return values;
     }
 
