@@ -38,8 +38,8 @@ function parseString(bencodedValue, offset) {
   return { value, newCursor: cursor };
 }
 
-function parseLists(bencodedValue) {
-  let cursor = 0;
+function parseLists(bencodedValue, offset = 0) {
+  let cursor = offset;
   cursor++; // skip first character since we've already read it previously
 
   // determine if this is a string or an integer
@@ -54,9 +54,16 @@ function parseLists(bencodedValue) {
         cursor = newCursor;
         values.push(value);
       }
+      if (currentChar === 'l') {
+        const { values: nestedValues, newCursor } = parseLists(bencodedValue, cursor);
+        values.push(nestedValues);
+        cursor = newCursor;
+      }
+
       if (currentChar === 'e') {
         // terminator char found at the end of the list
         cursor++;
+        break;
       }
     } else {
       const { value, newCursor } = parseString(bencodedValue, cursor);
@@ -64,12 +71,11 @@ function parseLists(bencodedValue) {
       values.push(value);
     }
   } while (cursor < bencodedValue.length);
-  return values;
+
+  return { values, newCursor: cursor };
 }
 
 function decodeBencode(bencodedValue) {
-  // Check if the first character is a digit
-
   const [firstCharacter] = bencodedValue;
   const lastCharacter = bencodedValue.charAt(bencodedValue.length - 1);
 
@@ -79,7 +85,8 @@ function decodeBencode(bencodedValue) {
       return value;
     }
     if (firstCharacter === 'l' && lastCharacter === 'e') {
-      return parseLists(bencodedValue);
+      const { values } = parseLists(bencodedValue, 0);
+      return values;
     }
 
     throw new Error(`Invalid value ${bencodedValue}. Unsupported encoding.`);

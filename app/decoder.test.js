@@ -83,3 +83,11 @@ test('decodes an empty bencoded list', () => {
   // assert
   expect(actual).toEqual([]);
 });
+
+test('decodes a nested list', () => {
+  // act
+  const actual = decodeBencode('lli816e9:blueberryee');
+
+  // assert
+  expect(actual).toEqual([[816, 'blueberry']]);
+});
