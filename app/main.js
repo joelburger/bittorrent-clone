@@ -1,19 +1,32 @@
 const process = require('process');
-const util = require('util');
+const { readFile } = require('fs/promises');
+const crypto = require('crypto');
 const fs = require('fs');
 const { decodeBencode } = require('./decoder');
 
-function main() {
+function sha1Hash(buffer) {
+  return crypto.createHash('sha1').update(buffer).digest('hex');
+}
+
+function calculateInfoHash(buffer) {
+  const cursor = buffer.indexOf('info');
+  const info = buffer.subarray(cursor + 4, buffer.length - 1);
+
+  return sha1Hash(info);
+}
+
+async function main() {
   const command = process.argv[2];
   if (command === 'decode') {
     const bencodedValue = process.argv[3];
     console.log(JSON.stringify(decodeBencode(bencodedValue)));
   } else if (command === 'info') {
     const inputFile = process.argv[3];
-    const bencodedValue = fs.readFileSync(inputFile, 'utf8');
-    const decoded = decodeBencode(bencodedValue);
+    const buffer = await readFile(inputFile);
+    const decoded = decodeBencode(buffer.toString('utf8'));
     console.log(`Tracker URL: ${decoded.announce}`);
     console.log(`Length: ${decoded.info.length}`);
+    console.log(`Info Hash: ${calculateInfoHash(buffer)}`);
   } else {
     throw new Error(`Unknown command ${command}`);
   }
