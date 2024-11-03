@@ -23,8 +23,8 @@ async function main() {
   } else if (command === 'info') {
     const inputFile = process.argv[3];
     const buffer = await readFile(inputFile);
-    const decoded = decodeBencode(buffer.toString('utf8'));
-    console.log(`Tracker URL: ${decoded.announce}`);
+    const decoded = decodeBencode(buffer);
+    console.log(`Tracker URL: ${decoded.announce.toString()}`);
     console.log(`Length: ${decoded.info.length}`);
     console.log(`Info Hash: ${calculateInfoHash(buffer)}`);
   } else {
