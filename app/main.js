@@ -4,15 +4,23 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { decodeBencode } = require('./decoder');
 
+const HASH_LENGTH = 20;
+
 function sha1Hash(buffer) {
   return crypto.createHash('sha1').update(buffer).digest('hex');
 }
 
-function calculateInfoHash(buffer) {
-  const cursor = buffer.indexOf('info');
-  const info = buffer.subarray(cursor + 4, buffer.length - 1);
+function calculateInfoHash(info, hashLength) {
+  const numberOfPieces = info.pieces.length / hashLength;
+  const buffer = Buffer.concat([
+    Buffer.from(
+      `d6:lengthi${info.length}e4:name${info.name.length}:${info.name}12:piece lengthi${info['piece length']}e6:pieces${numberOfPieces * hashLength}:`,
+    ),
+    info.pieces,
+    Buffer.from('e'),
+  ]);
 
-  return sha1Hash(info);
+  return sha1Hash(buffer);
 }
 
 function splitPieces(pieces, hashLength) {
@@ -36,6 +44,7 @@ function convertBuffersToStrings(obj) {
 
 async function main() {
   const command = process.argv[2];
+
   if (command === 'decode') {
     const buffer = Buffer.from(process.argv[3]);
     const result = decodeBencode(buffer);
@@ -46,11 +55,11 @@ async function main() {
     const decoded = decodeBencode(buffer);
     console.log(`Tracker URL: ${decoded.announce.toString()}`);
     console.log(`Length: ${decoded.info.length}`);
-    console.log(`Info Hash: ${calculateInfoHash(buffer)}`);
+    console.log(`Info Hash: ${calculateInfoHash(decoded.info, HASH_LENGTH)}`);
     console.log(`Piece Length: ${decoded.info['piece length']}`);
     console.log('Piece Hashes:');
 
-    splitPieces(decoded.info.pieces, 20).forEach((piece) => {
+    splitPieces(decoded.info.pieces, HASH_LENGTH).forEach((piece) => {
       console.log(piece.toString('hex'));
     });
   } else {
