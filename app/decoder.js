@@ -94,7 +94,7 @@ function parseDictionary(buffer, offset) {
     } else {
       const { value, newCursor } = parseByteString(buffer, cursor);
       cursor = newCursor;
-      dictionaryKey = value;
+      dictionaryKey = value.toString();
     }
 
     currentChar = String.fromCharCode(buffer.readInt8(cursor));
