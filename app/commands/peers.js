@@ -1,7 +1,7 @@
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../decoder');
 const fetch = require('node-fetch');
-const { HASH_LENGTH, calculateInfoHash } = require('../common');
+const { HASH_LENGTH, calculateInfoHash } = require('./common');
 
 function parsePeers(peers) {
   const addresses = [];

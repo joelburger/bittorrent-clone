@@ -1,6 +1,6 @@
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../decoder');
-const { HASH_LENGTH, calculateInfoHash } = require('../common');
+const { HASH_LENGTH, calculateInfoHash } = require('./common');
 
 function splitPieces(pieces, hashLength) {
   const result = [];
