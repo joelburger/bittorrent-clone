@@ -19,6 +19,8 @@ function sha1Hash(buffer, encoding) {
 
 function calculateInfoHash(info, encoding = 'hex') {
   const numberOfPieces = info.pieces.length / INFO_HASH_LENGTH;
+
+  // TODO Refactor this
   const buffer = Buffer.concat([
     Buffer.from(
       `d6:lengthi${info.length}e` +
