@@ -37,8 +37,7 @@ async function handshake(infoHashCode, peer, peerId) {
       const buffer = Buffer.alloc(68);
       buffer.writeUInt8(19, 0); // Length of the protocol string
       buffer.write('BitTorrent protocol', 1); // Protocol string
-      buffer.writeUInt32BE(0, 20); // Reserved bytes (first 4 bytes)
-      buffer.writeUInt32BE(0, 24); // Reserved bytes (next 4 bytes)
+      buffer.fill(0, 20, 28); // Reserved bytes (8 bytes)
       buffer.write(infoHashCode, 28, 'binary'); // Info hash (20 bytes)
       buffer.write(peerId, 48, 'binary'); // Peer ID (20 bytes)
       socket.write(buffer);
