@@ -1,7 +1,7 @@
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../decoder');
 const fetch = require('node-fetch');
-const { HASH_LENGTH, calculateInfoHash } = require('./common');
+const { calculateInfoHash, generateRandomString } = require('./common');
 
 function parsePeers(peers) {
   const addresses = [];
@@ -25,9 +25,10 @@ async function handleCommand(parameters) {
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
   try {
+    const peerId = generateRandomString();
     const queryParams =
-      `info_hash=${urlEncodeInfoHash(calculateInfoHash(torrent.info, HASH_LENGTH))}` +
-      `&peer_id=12345678901234567890` +
+      `info_hash=${urlEncodeInfoHash(calculateInfoHash(torrent.info))}` +
+      `&peer_id=${peerId}` +
       `&port=6881` +
       `&uploaded=0` +
       `&downloaded=0` +
