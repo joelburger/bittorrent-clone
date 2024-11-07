@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { encodeInteger, encodeString } = require('../encoder');
+const { encodeInteger, encodeString } = require('./encoder');
 const INFO_HASH_LENGTH = 20;
 
 function generatePeerId(length = 20) {
