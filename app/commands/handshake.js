@@ -1,23 +1,8 @@
 const net = require('net');
 const { readFile } = require('fs/promises');
-const { decodeBencode } = require('../decoder');
-const { calculateInfoHash, generateRandomString } = require('./common');
-
-function createSocket(dataEventHandler) {
-  const socket = new net.Socket();
-
-  socket.on('data', dataEventHandler);
-
-  socket.on('close', () => {
-    console.log('Connection closed');
-  });
-
-  socket.on('connect', () => {
-    console.log(`Connected to ${socket.remoteAddress}:${socket.remotePort}`);
-  });
-
-  return socket;
-}
+const { decodeBencode } = require('../utils/decoder');
+const { calculateInfoHash, generatePeerId } = require('../utils/torrent');
+const { createSocket } = require('../utils/network');
 
 async function handshake(infoHashCode, peer, peerId) {
   const [host, port] = peer.split(':');
@@ -54,7 +39,7 @@ async function handleCommand(parameters) {
   const buffer = await readFile(inputFile);
   const { info } = decodeBencode(buffer);
   const infoHashCode = calculateInfoHash(info, 'binary');
-  const peerId = generateRandomString();
+  const peerId = generatePeerId();
   const response = await handshake(infoHashCode, peer, peerId);
   console.log(`Peer ID: ${response}`);
 }

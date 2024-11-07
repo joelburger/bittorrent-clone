@@ -1,7 +1,8 @@
 const crypto = require('crypto');
+const { encodeInteger, encodeString } = require('../encoder');
 const INFO_HASH_LENGTH = 20;
 
-function generateRandomString(length = 20) {
+function generatePeerId(length = 20) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
   const charactersLength = characters.length;
@@ -20,13 +21,12 @@ function sha1Hash(buffer, encoding) {
 function calculateInfoHash(info, encoding = 'hex') {
   const numberOfPieces = info.pieces.length / INFO_HASH_LENGTH;
 
-  // TODO Refactor this
   const buffer = Buffer.concat([
     Buffer.from(
-      `d6:lengthi${info.length}e` +
-        `4:name${info.name.length}:${info.name}` +
-        `12:piece lengthi${info['piece length']}e` +
-        `6:pieces${numberOfPieces * INFO_HASH_LENGTH}:`,
+      `d${encodeString('length')}${encodeInteger(info.length)}` +
+        `${encodeString('name')}${encodeString(info.name)}` +
+        `${encodeString('piece length')}${encodeInteger(info['piece length'])}` +
+        `${encodeString('pieces')}${numberOfPieces * INFO_HASH_LENGTH}:`,
     ),
     info.pieces,
     Buffer.from('e'),
@@ -37,5 +37,5 @@ function calculateInfoHash(info, encoding = 'hex') {
 
 module.exports = {
   calculateInfoHash,
-  generateRandomString,
+  generatePeerId,
 };

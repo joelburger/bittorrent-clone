@@ -1,5 +1,5 @@
 const { readFile } = require('fs/promises');
-const { decodeBencode } = require('../decoder');
+const { decodeBencode } = require('../utils/decoder');
 const fetch = require('node-fetch');
 const { calculateInfoHash, generateRandomString } = require('./common');
 

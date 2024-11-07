@@ -1,4 +1,4 @@
-const { decodeBencode } = require('../decoder');
+const { decodeBencode } = require('../utils/decoder');
 
 function convertBuffersToStrings(obj) {
   if (Buffer.isBuffer(obj)) {
