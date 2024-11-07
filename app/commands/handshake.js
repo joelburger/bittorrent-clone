@@ -1,4 +1,3 @@
-const net = require('net');
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
 const { calculateInfoHash, generatePeerId } = require('../utils/torrent');

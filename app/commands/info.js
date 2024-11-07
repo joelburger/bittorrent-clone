@@ -1,6 +1,6 @@
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
-const { calculateInfoHash } = require('./common');
+const { calculateInfoHash } = require('../utils/torrent');
 
 const PIECES_LENGTH = 20;
 
