@@ -3,12 +3,14 @@ const handleDecode = require('./commands/decode');
 const handleInfo = require('./commands/info');
 const handlePeers = require('./commands/peers');
 const handleHandshake = require('./commands/handshake');
+const handleDownloadPiece = require('./commands/download-piece');
 
 const handlers = {
   decode: handleDecode,
   info: handleInfo,
   peers: handlePeers,
   handshake: handleHandshake,
+  download_piece: handleDownloadPiece,
 };
 
 const parameters = process.argv.slice(2);
