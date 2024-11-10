@@ -7,8 +7,15 @@ async function handleCommand(parameters) {
 
   const buffer = await readFile(inputFile);
   const { info } = decodeBencode(buffer);
-  const response = await sendHandshake(info, peer);
-  console.log(`Peer ID: ${response}`);
+  let socket, response;
+  try {
+    ({ socket, peerId: response } = await sendHandshake(info, peer));
+    console.log(`Peer ID: ${response}`);
+  } finally {
+    if (socket) {
+      socket.end;
+    }
+  }
 }
 
 module.exports = handleCommand;

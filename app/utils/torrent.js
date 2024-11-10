@@ -78,7 +78,6 @@ function calculateInfoHash(info, encoding = 'hex') {
 async function sendHandshake(info, peer) {
   const [host, port] = peer.split(':');
   const infoHashCode = calculateInfoHash(info, 'binary');
-  const peerId = generatePeerId();
 
   console.log(`Sending handshake to ${host}:${port}`);
 
@@ -86,8 +85,7 @@ async function sendHandshake(info, peer) {
     try {
       const socket = createSocket((data) => {
         const peerId = data.subarray(48, 68).toString('hex');
-        socket.end();
-        resolve(peerId);
+        resolve({ socket, peerId });
       });
 
       socket.connect({ host, port: parseInt(port, 10) });
@@ -97,7 +95,7 @@ async function sendHandshake(info, peer) {
       buffer.write('BitTorrent protocol', 1); // Protocol string
       buffer.fill(0, 20, 28); // Reserved bytes (8 bytes)
       buffer.write(infoHashCode, 28, 'binary'); // Info hash (20 bytes)
-      buffer.write(peerId, 48, 'binary'); // Peer ID (20 bytes)
+      buffer.write(generatePeerId(), 48, 'binary'); // Peer ID (20 bytes)
       socket.write(buffer);
     } catch (err) {
       console.error('Handshake error', err);
