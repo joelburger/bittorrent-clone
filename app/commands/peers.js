@@ -8,8 +8,8 @@ async function handleCommand(parameters) {
   const torrent = decodeBencode(buffer);
   const addresses = await fetchPeers(torrent);
 
-  addresses.forEach((address) => {
-    console.log(address);
+  addresses.forEach(({ host, port }) => {
+    console.log(`${host}:${port}`);
   });
 }
 

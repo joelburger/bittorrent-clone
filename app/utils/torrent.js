@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { encodeInteger, encodeString, encodeBuffer } = require('./encoder');
 const fetch = require('node-fetch');
 const { decodeBencode } = require('./decoder');
-const { createSocket } = require('./network');
+const { connect } = require('./network');
 
 function generatePeerId(length = 20) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -23,7 +23,10 @@ function parsePeers(peers) {
     const address = peer[0] + '.' + peer[1] + '.' + peer[2] + '.' + peer[3] + ':' + peer.readUInt16BE(4);
     addresses.push(address);
   }
-  return addresses;
+  return addresses.map((value) => {
+    const [host, portAsString] = value.split(':');
+    return { host, port: parseInt(portAsString, 10) };
+  });
 }
 
 function urlEncodeInfoHash(infoHash) {
@@ -75,20 +78,19 @@ function calculateInfoHash(info, encoding = 'hex') {
   return sha1Hash(buffer, encoding);
 }
 
-async function sendHandshake(info, peer) {
-  const [host, port] = peer.split(':');
+async function sendHandshake(info, { host, port }) {
   const infoHashCode = calculateInfoHash(info, 'binary');
 
   console.log(`Sending handshake to ${host}:${port}`);
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
-      const socket = createSocket((data) => {
-        const peerId = data.subarray(48, 68).toString('hex');
-        resolve({ socket, peerId });
-      });
+      const socket = await connect(host, port);
 
-      socket.connect({ host, port: parseInt(port, 10) });
+      socket.once('data', (data) => {
+        console.log('Handshake successful');
+        resolve({ socket, data });
+      });
 
       const buffer = Buffer.alloc(68);
       buffer.writeUInt8(19, 0); // Length of the protocol string
@@ -106,7 +108,6 @@ async function sendHandshake(info, peer) {
 
 module.exports = {
   calculateInfoHash,
-  generatePeerId,
   fetchPeers,
   sendHandshake,
 };

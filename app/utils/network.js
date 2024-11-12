@@ -1,9 +1,7 @@
 const { Socket } = require('net');
 
-function createSocket(dataEventHandler) {
+async function connect(host, port) {
   const socket = new Socket();
-
-  socket.on('data', dataEventHandler);
 
   socket.on('close', () => {
     console.log('Connection closed');
@@ -13,9 +11,18 @@ function createSocket(dataEventHandler) {
     console.log(`Connected to ${socket.remoteAddress}:${socket.remotePort}`);
   });
 
+  await socket.connect({ host, port });
+
   return socket;
 }
 
+function disconnect(socket) {
+  if (socket) {
+    socket.end();
+  }
+}
+
 module.exports = {
-  createSocket,
+  connect,
+  disconnect,
 };
