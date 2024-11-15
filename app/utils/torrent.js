@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { encodeInteger, encodeString, encodeBuffer } = require('./encoder');
+const { encodeInteger, encodeString, encodeBuffer, sha1Hash } = require('./encoder');
 const fetch = require('node-fetch');
 const { decodeBencode } = require('./decoder');
 const { connect } = require('./network');
@@ -59,10 +59,6 @@ async function fetchPeers(torrent) {
   } catch (err) {
     throw new Error(`Failed to fetch peers. Error: ${err.message}`);
   }
-}
-
-function sha1Hash(buffer, encoding) {
-  return crypto.createHash('sha1').update(buffer).digest(encoding);
 }
 
 function calculateInfoHash(info, encoding = 'hex') {

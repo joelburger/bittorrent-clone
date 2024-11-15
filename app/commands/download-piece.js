@@ -3,6 +3,7 @@ const { writeFileSync } = require('fs');
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
 const { disconnect } = require('../utils/network');
+const { sha1Hash } = require('../utils/encoder');
 
 function sendMessage(socket, messageId, payload) {
   const payloadBuffer = payload ? Buffer.from(payload) : undefined;
@@ -46,22 +47,6 @@ async function receiveResponse(socket, expectedMessageId) {
 }
 
 async function downloadBlock(socket, pieceIndex, blockOffset, blockSize) {
-  // Break the piece into blocks of 16 kiB (16 * 1024 bytes) and send a request message for each block
-  // The message id for request is 6.
-  // The payload for this message consists of:
-  // index: the zero-based piece index
-  // begin: the zero-based byte offset within the piece
-  // This'll be 0 for the first block, 2^14 for the second block, 2*2^14 for the third block etc.
-  // length: the length of the block in bytes
-  // This'll be 2^14 (16 * 1024) for all blocks except the last one.
-  // The last block will contain 2^14 bytes or less, you'll need calculate this value using the piece length.
-  // Wait for a piece message for each block you've requested
-  // The message id for piece is 7.
-  // The payload for this message consists of:
-  // index: the zero-based piece index
-  // begin: the zero-based byte offset within the piece
-  // block: the data for the piece, usually 2^14 bytes long
-  // After receiving blocks and combining them into pieces, you'll want to check the integrity of each piece by comparing its hash with the piece hash value found in the torrent file.
   const requestPayload = Buffer.alloc(12);
   requestPayload.writeUInt32BE(pieceIndex, 0);
   requestPayload.writeUInt32BE(blockOffset, 4);
@@ -72,56 +57,61 @@ async function downloadBlock(socket, pieceIndex, blockOffset, blockSize) {
   return receiveResponse(socket);
 }
 
+function padArrayWithZeroes(arr, n) {
+  if (arr.length >= n) {
+    return arr; // Return the original array if it's already long enough
+  }
+  return [...arr, ...Array(n - arr.length).fill(0)];
+}
+
 async function downloadFile(info, peer, outputFilePath) {
   let socket, handshakeResponse;
   try {
     ({ socket, data: handshakeResponse } = await sendHandshake(info, peer));
-
     console.log('handshake response', handshakeResponse.toString('hex'));
 
-    //Peer messages consist of a message length prefix (4 bytes), message id (1 byte) and a payload (variable size).
-
-    // Wait for a bitfield message from the peer indicating which pieces it has
-    // The message id for this message type is 5.
-    // You can read and ignore the payload for now, the tracker we use for this challenge ensures that all peers have all pieces available.
-
-    // Send an interested message
-    // The message id for interested is 2.
-    // The payload for this message is empty.
     sendMessage(socket, 2);
     console.log('Sent interested message');
 
-    // Wait until you receive an unchoke message back
-    // The message id for unchoke is 1.
-    // The payload for this message is empty.
     const unchokeResponse = await receiveResponse(socket);
     console.log('unchoke message received', { ...unchokeResponse });
 
-    console.log('info', info);
-
     const fileByteArray = [];
+    let totalSize = 0;
     let pieceIndex = 0;
     const defaultBlockSize = 16 * 1024;
     for (const piece of splitPieces(info.pieces)) {
+      let pieceByteArray = [];
       for (let blockOffset = 0; blockOffset < info['piece length']; blockOffset += defaultBlockSize) {
         let blockSize;
-        if (fileByteArray.length + defaultBlockSize > info.length) {
-          blockSize = info.length - fileByteArray.length;
+        if (totalSize + defaultBlockSize > info.length) {
+          blockSize = info.length - totalSize;
         } else {
           blockSize = defaultBlockSize;
         }
-        const {
-          messageId,
-          messageSize,
-          payload: blockBuffer,
-        } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize);
-        console.log('>', { pieceIndex, messageId, messageSize });
+        let retryCount = 0;
+        let messageId, messageSize, payload;
+
+        do {
+          ({ messageId, messageSize, payload } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize));
+          retryCount += 1;
+        } while (messageId !== 7 && retryCount <= 5);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        console.log('>', { pieceIndex, messageId, messageSize, payload: payload.length });
         if (messageId === 7) {
-          fileByteArray.push(...blockBuffer);
+          pieceByteArray.push(...Array.from(payload));
+          //pieceByteArray.push(...padArrayWithZeroes(Array.from(payload), blockSize));
+        } else {
+          throw new Error(`unexpected message ID response: ${messageId}`);
         }
+        totalSize += blockSize;
       }
+      console.log(`expected: ${piece.toString('hex')}, actual: ${sha1Hash(Buffer.from(fileByteArray), 'hex')}`);
+      fileByteArray.push(...pieceByteArray);
       pieceIndex++;
     }
+
     console.log(`download finished. saving to ${outputFilePath}`);
     writeFileSync(outputFilePath, Buffer.from(fileByteArray));
   } catch (err) {
@@ -136,7 +126,7 @@ async function handleCommand(parameters) {
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
   const addresses = await fetchPeers(torrent);
-  const [firstPeer] = addresses;
+  const [firstPeer, secondPeer, thirdPeer] = addresses;
 
   await downloadFile(torrent.info, firstPeer, outputFilePath);
 }
