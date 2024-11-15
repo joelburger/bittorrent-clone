@@ -4,6 +4,8 @@ const fetch = require('node-fetch');
 const { decodeBencode } = require('./decoder');
 const { connect } = require('./network');
 
+const PIECES_LENGTH = 20;
+
 function generatePeerId(length = 20) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -106,8 +108,17 @@ async function sendHandshake(info, { host, port }) {
   });
 }
 
+function splitPieces(pieces) {
+  const result = [];
+  for (let i = 0; i < pieces.length; i += PIECES_LENGTH) {
+    result.push(pieces.subarray(i, i + PIECES_LENGTH));
+  }
+  return result;
+}
+
 module.exports = {
   calculateInfoHash,
   fetchPeers,
   sendHandshake,
+  splitPieces,
 };

@@ -2,16 +2,6 @@ const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
 const { calculateInfoHash } = require('../utils/torrent');
 
-const PIECES_LENGTH = 20;
-
-function splitPieces(pieces) {
-  const result = [];
-  for (let i = 0; i < pieces.length; i += PIECES_LENGTH) {
-    result.push(pieces.subarray(i, i + PIECES_LENGTH));
-  }
-  return result;
-}
-
 async function handleCommand(parameters) {
   const [, inputFile] = parameters;
   const buffer = await readFile(inputFile);

@@ -1,6 +1,7 @@
+const { sendHandshake, splitPieces, fetchPeers } = require('../utils/torrent');
+const { writeFileSync } = require('fs');
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
-const { fetchPeers, sendHandshake } = require('../utils/torrent');
 const { disconnect } = require('../utils/network');
 
 function sendMessage(socket, messageId, payload) {
@@ -24,17 +25,20 @@ function removeAllListeners(socket) {
   socket.removeAllListeners('error');
 }
 
-async function receiveResponse(socket) {
+async function receiveResponse(socket, expectedMessageId) {
   return new Promise((resolve, reject) => {
-    socket.once('data', (data) => {
+    socket.on('data', (data) => {
       const messageSize = data.readUInt32BE(0);
       const messageId = data.readUint8(4);
-      const payload = messageSize > 1 ? data.subarray(5) : null;
-      removeAllListeners(socket);
-      resolve({ messageSize, messageId, payload });
+
+      if (!expectedMessageId || (expectedMessageId && messageId === expectedMessageId)) {
+        const payload = messageSize > 1 ? data.subarray(5) : null;
+        removeAllListeners(socket);
+        resolve({ messageSize, messageId, payload });
+      }
     });
 
-    socket.once('error', (err) => {
+    socket.on('error', (err) => {
       removeAllListeners(socket);
       reject(err);
     });
@@ -65,28 +69,10 @@ async function downloadBlock(socket, pieceIndex, blockOffset, blockSize) {
   sendMessage(socket, 6, requestPayload);
   console.log('download block', { pieceIndex, blockOffset, blockSize });
 
-  const downloadResponse = await receiveResponse(socket);
-  console.log('downloadResponse', downloadResponse.messageId, downloadResponse.messageSize);
-
-  return downloadResponse;
+  return receiveResponse(socket);
 }
 
-function calculateBlockSize(pieceIndex, numberOfPieces, currentFileSize, totalFileSize) {
-  const defaultBlockSize = 16 * 1024;
-
-  // If it's not the last piece return default block size
-  if (pieceIndex + 1 < numberOfPieces) {
-    return defaultBlockSize;
-  }
-
-  if (currentFileSize + defaultBlockSize < totalFileSize) {
-    return defaultBlockSize;
-  }
-
-  return totalFileSize - currentFileSize;
-}
-
-async function sendPeerMessage(info, peer) {
+async function downloadFile(info, peer, outputFilePath) {
   let socket, handshakeResponse;
   try {
     ({ socket, data: handshakeResponse } = await sendHandshake(info, peer));
@@ -111,24 +97,33 @@ async function sendPeerMessage(info, peer) {
     const unchokeResponse = await receiveResponse(socket);
     console.log('unchoke message received', { ...unchokeResponse });
 
+    console.log('info', info);
+
+    const fileByteArray = [];
     let pieceIndex = 0;
-    const pieceLength = info['piece length'];
-    const totalFileSize = info.length;
-    let pieceBuffer = Buffer.alloc(pieceLength * info.pieces.length);
-    let currentFileSize = 0;
-    for (const piece of info.pieces) {
-      let blockOffset = 0;
-      const defaultBlockSize = 16 * 1024;
-      do {
-        const blockSize = calculateBlockSize(pieceIndex, info.pieces.length, currentFileSize, totalFileSize);
-        const { payload } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize);
-        payload.copy(pieceBuffer, currentFileSize);
-        currentFileSize += blockSize;
-        blockOffset += blockSize;
-      } while (blockOffset < pieceLength);
+    const defaultBlockSize = 16 * 1024;
+    for (const piece of splitPieces(info.pieces)) {
+      for (let blockOffset = 0; blockOffset < info['piece length']; blockOffset += defaultBlockSize) {
+        let blockSize;
+        if (fileByteArray.length + defaultBlockSize > info.length) {
+          blockSize = info.length - fileByteArray.length;
+        } else {
+          blockSize = defaultBlockSize;
+        }
+        const {
+          messageId,
+          messageSize,
+          payload: blockBuffer,
+        } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize);
+        console.log('>', { pieceIndex, messageId, messageSize });
+        if (messageId === 7) {
+          fileByteArray.push(...blockBuffer);
+        }
+      }
       pieceIndex++;
     }
-    console.log('file', pieceBuffer);
+    console.log(`download finished. saving to ${outputFilePath}`);
+    writeFileSync(outputFilePath, Buffer.from(fileByteArray));
   } catch (err) {
     console.error('Failed to download file', err);
   } finally {
@@ -137,13 +132,13 @@ async function sendPeerMessage(info, peer) {
 }
 
 async function handleCommand(parameters) {
-  const [, , outputFile, inputFile] = parameters;
+  const [, , outputFilePath, inputFile] = parameters;
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
   const addresses = await fetchPeers(torrent);
   const [firstPeer] = addresses;
 
-  await sendPeerMessage(torrent.info, firstPeer);
+  await downloadFile(torrent.info, firstPeer, outputFilePath);
 }
 
 module.exports = handleCommand;
