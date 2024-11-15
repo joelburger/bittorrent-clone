@@ -82,7 +82,8 @@ async function downloadFile(info, peer, outputFilePath) {
     const defaultBlockSize = 16 * 1024;
     for (const piece of splitPieces(info.pieces)) {
       let pieceByteArray = [];
-      for (let blockOffset = 0; blockOffset < info['piece length']; blockOffset += defaultBlockSize) {
+      let blockOffset = 0;
+      while (blockOffset < info['piece length']) {
         let blockSize;
         if (totalSize + defaultBlockSize > info.length) {
           blockSize = info.length - totalSize;
@@ -101,13 +102,16 @@ async function downloadFile(info, peer, outputFilePath) {
         console.log('>', { pieceIndex, messageId, messageSize, payload: payload.length });
         if (messageId === 7) {
           pieceByteArray.push(...Array.from(payload));
-          //pieceByteArray.push(...padArrayWithZeroes(Array.from(payload), blockSize));
         } else {
           throw new Error(`unexpected message ID response: ${messageId}`);
         }
         totalSize += blockSize;
+        blockOffset += defaultBlockSize;
       }
-      console.log(`expected: ${piece.toString('hex')}, actual: ${sha1Hash(Buffer.from(fileByteArray), 'hex')}`);
+      console.log(
+        `pieceIndex: ${pieceIndex}, expected: ${piece.toString('hex')}, actual: ${sha1Hash(Buffer.from(fileByteArray), 'hex')}`,
+      );
+      console.log('\n');
       fileByteArray.push(...pieceByteArray);
       pieceIndex++;
     }
