@@ -5,6 +5,8 @@ const { decodeBencode } = require('../utils/decoder');
 const { disconnect } = require('../utils/network');
 const { sha1Hash } = require('../utils/encoder');
 
+const DEFAULT_BLOCK_SIZE = 16 * 1024;
+
 function sendMessage(socket, messageId, payload) {
   const payloadBuffer = payload ? Buffer.from(payload) : undefined;
   const messageSize = (payload ? payload.length : 0) + 1;
@@ -31,12 +33,9 @@ async function receiveResponse(socket, expectedMessageId) {
     socket.on('data', (data) => {
       const messageSize = data.readUInt32BE(0);
       const messageId = data.readUint8(4);
-
-      if (!expectedMessageId || (expectedMessageId && messageId === expectedMessageId)) {
-        const payload = messageSize > 1 ? data.subarray(5) : null;
-        removeAllListeners(socket);
-        resolve({ messageSize, messageId, payload });
-      }
+      const payload = messageSize > 1 ? data.subarray(5) : null;
+      removeAllListeners(socket);
+      resolve({ messageSize, messageId, payload });
     });
 
     socket.on('error', (err) => {
@@ -64,75 +63,85 @@ function padArrayWithZeroes(arr, n) {
   return [...arr, ...Array(n - arr.length).fill(0)];
 }
 
-async function downloadFile(info, peer, outputFilePath) {
-  let socket, handshakeResponse;
-  try {
-    ({ socket, data: handshakeResponse } = await sendHandshake(info, peer));
-    console.log('handshake response', handshakeResponse.toString('hex'));
+function calculateBlockSize(pieceIndex, info, blockOffset) {
+  const pieceLength = info['piece length'];
+  const numberOfPieces = splitPieces(info.pieces).length;
+  const totalFileLength = info.length;
 
-    sendMessage(socket, 2);
-    console.log('Sent interested message');
-
-    const unchokeResponse = await receiveResponse(socket);
-    console.log('unchoke message received', { ...unchokeResponse });
-
-    const fileByteArray = [];
-    let totalSize = 0;
-    let pieceIndex = 0;
-    const defaultBlockSize = 16 * 1024;
-    for (const piece of splitPieces(info.pieces)) {
-      let pieceByteArray = [];
-      let blockOffset = 0;
-      while (blockOffset < info['piece length']) {
-        let blockSize;
-        if (totalSize + defaultBlockSize > info.length) {
-          blockSize = info.length - totalSize;
-        } else {
-          blockSize = defaultBlockSize;
-        }
-        let retryCount = 0;
-        let messageId, messageSize, payload;
-
-        do {
-          ({ messageId, messageSize, payload } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize));
-          retryCount += 1;
-        } while (messageId !== 7 && retryCount <= 5);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        console.log('>', { pieceIndex, messageId, messageSize, payload: payload.length });
-        if (messageId === 7) {
-          pieceByteArray.push(...Array.from(payload));
-        } else {
-          throw new Error(`unexpected message ID response: ${messageId}`);
-        }
-        totalSize += blockSize;
-        blockOffset += defaultBlockSize;
-      }
-      console.log(
-        `pieceIndex: ${pieceIndex}, expected: ${piece.toString('hex')}, actual: ${sha1Hash(Buffer.from(fileByteArray), 'hex')}`,
-      );
-      console.log('\n');
-      fileByteArray.push(...pieceByteArray);
-      pieceIndex++;
-    }
-
-    console.log(`download finished. saving to ${outputFilePath}`);
-    writeFileSync(outputFilePath, Buffer.from(fileByteArray));
-  } catch (err) {
-    console.error('Failed to download file', err);
-  } finally {
-    disconnect(socket);
+  // if this is not the last piece, immediately return the default block size
+  if (pieceIndex + 1 < numberOfPieces) {
+    return DEFAULT_BLOCK_SIZE;
   }
+
+  // if this is not the last block, immediately return the default block size
+  if (blockOffset + DEFAULT_BLOCK_SIZE < pieceLength) {
+    return DEFAULT_BLOCK_SIZE;
+  }
+
+  return pieceLength * numberOfPieces - totalFileLength;
+}
+
+async function downloadPiece(socket, pieceIndex, info) {
+  const output = [];
+  let blockOffset = 0;
+  while (blockOffset < info['piece length']) {
+    let retryCount = 0;
+    let messageId, messageSize, payload;
+    const blockSize = calculateBlockSize(pieceIndex, info, blockOffset);
+    do {
+      ({ messageId, messageSize, payload } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      retryCount += 1;
+    } while (messageId !== 7 && retryCount <= 10);
+
+    const payloadData = payload.subarray(8).length;
+
+    console.log('>', {
+      pieceIndex,
+      messageId,
+      messageSize,
+      payloadIndex: payload.readUInt32BE(0),
+      payloadOffset: payload.readUInt32BE(4),
+      payloadDataSize: payloadData.length,
+    });
+
+    if (messageId === 7) {
+      output.push(...Array.from(payload.subarray(8)));
+    } else {
+      throw new Error(`unexpected message ID response: ${messageId}`);
+    }
+    blockOffset += DEFAULT_BLOCK_SIZE;
+  }
+  return output;
 }
 
 async function handleCommand(parameters) {
-  const [, , outputFilePath, inputFile] = parameters;
+  const [, , outputFilePath, inputFile, pieceIndexString] = parameters;
+  const pieceIndex = Number(pieceIndexString);
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
   const addresses = await fetchPeers(torrent);
   const [firstPeer, secondPeer, thirdPeer] = addresses;
 
-  await downloadFile(torrent.info, firstPeer, outputFilePath);
+  let socket, handshakeResponse;
+  try {
+    ({ socket, data: handshakeResponse } = await sendHandshake(torrent.info, firstPeer));
+    console.log('handshake response', handshakeResponse.toString('hex'));
+
+    sendMessage(socket, 2);
+
+    console.log('Sent interested message');
+
+    const unchokeResponse = await receiveResponse(socket);
+    console.log('unchoke message received', { ...unchokeResponse });
+
+    const output = await downloadPiece(socket, pieceIndex, torrent.info);
+
+    console.log(`download finished. saving to ${outputFilePath}`);
+    writeFileSync(outputFilePath, Buffer.from(output));
+  } finally {
+    disconnect(socket);
+  }
 }
 
 module.exports = handleCommand;
