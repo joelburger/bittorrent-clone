@@ -3,7 +3,6 @@ const { writeFileSync } = require('fs');
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
 const { disconnect } = require('../utils/network');
-const { sha1Hash } = require('../utils/encoder');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
@@ -28,7 +27,7 @@ function removeAllListeners(socket) {
   socket.removeAllListeners('error');
 }
 
-async function receiveResponse(socket, expectedMessageId) {
+async function receiveResponse(socket) {
   return new Promise((resolve, reject) => {
     socket.on('data', (data) => {
       const messageSize = data.readUInt32BE(0);
@@ -56,13 +55,6 @@ async function downloadBlock(socket, pieceIndex, blockOffset, blockSize) {
   return receiveResponse(socket);
 }
 
-function padArrayWithZeroes(arr, n) {
-  if (arr.length >= n) {
-    return arr; // Return the original array if it's already long enough
-  }
-  return [...arr, ...Array(n - arr.length).fill(0)];
-}
-
 function calculateBlockSize(pieceIndex, info, blockOffset) {
   const pieceLength = info['piece length'];
   const numberOfPieces = splitPieces(info.pieces).length;
@@ -73,7 +65,7 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
     return DEFAULT_BLOCK_SIZE;
   }
 
-  // if this is not the last block, immediately return the default block size
+  // if this is not the last block, return the default block size
   if (blockOffset + DEFAULT_BLOCK_SIZE < pieceLength) {
     return DEFAULT_BLOCK_SIZE;
   }
