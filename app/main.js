@@ -3,7 +3,7 @@ const handleDecode = require('./commands/decode');
 const handleInfo = require('./commands/info');
 const handlePeers = require('./commands/peers');
 const handleHandshake = require('./commands/handshake');
-const handleDownloadPiece = require('./commands/download-piece');
+const handleDownloadPiece = require('./commands/download');
 
 const handlers = {
   decode: handleDecode,

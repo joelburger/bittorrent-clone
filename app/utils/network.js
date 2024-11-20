@@ -1,7 +1,9 @@
 const { Socket } = require('net');
 
-async function connect(host, port) {
+async function connect(host, port, dataEventHandler) {
   const socket = new Socket();
+
+  socket.on('data', dataEventHandler);
 
   socket.on('close', () => {
     console.log('Connection closed');

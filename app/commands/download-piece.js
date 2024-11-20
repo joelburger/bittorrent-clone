@@ -121,9 +121,7 @@ async function handleCommand(parameters) {
     console.log('handshake response', handshakeResponse.toString('hex'));
 
     sendMessage(socket, 2);
-
     console.log('Sent interested message');
-
     const unchokeResponse = await receiveResponse(socket);
     console.log('unchoke message received', { ...unchokeResponse });
 
