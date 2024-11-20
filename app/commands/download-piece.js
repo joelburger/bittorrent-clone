@@ -3,7 +3,6 @@ const { fetchPeers, createHandshakeRequest, splitPieces } = require('../utils/to
 const { readFile } = require('fs/promises');
 const { connect, disconnect } = require('../utils/network');
 const { writeFileSync } = require('fs');
-const { sha1Hash } = require('../utils/encoder');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
