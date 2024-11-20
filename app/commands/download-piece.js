@@ -7,12 +7,12 @@ const { sha1Hash } = require('../utils/encoder');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
-const Status = Object.freeze({
+const Status = {
   WAITING_ON_RESPONSE: 'waiting',
   RESPONSE_RECEIVED: 'response-received',
-});
+};
 
-const MessageId = Object.freeze({
+const MessageId = {
   CHOKE: 0,
   UNCHOKE: 1,
   INTERESTED: 2,
@@ -22,7 +22,7 @@ const MessageId = Object.freeze({
   REQUEST: 6,
   PIECE: 7,
   CANCEL: 8,
-});
+};
 
 const connectionState = {
   status: undefined,
@@ -55,25 +55,18 @@ function validateHandshakeResponse(handshakeResponse) {
 
 function fetchResponse() {
   return new Promise((resolve, reject) => {
-    const timeoutIds = [];
-    const intervalIds = [];
+    const timeoutId = setTimeout(() => {
+      clearTimeout(timeoutId);
+      reject(new Error('Request timeout'));
+    }, 5000);
 
-    timeoutIds.push(
-      setTimeout(() => {
-        clearTimers(timeoutIds, intervalIds);
-        reject(new Error('Request timeout'));
-      }, 5000),
-    );
-
-    intervalIds.push(
-      setInterval(() => {
-        if (connectionState.status === Status.RESPONSE_RECEIVED) {
-          clearTimers(timeoutIds, intervalIds);
-          resolve(Buffer.concat(connectionState.data));
-          connectionState.data = [];
-        }
-      }, 900),
-    );
+    const intervalId = setInterval(() => {
+      if (connectionState.status === Status.RESPONSE_RECEIVED) {
+        clearInterval(intervalId);
+        resolve(Buffer.concat(connectionState.data));
+        connectionState.data = [];
+      }
+    }, 900);
   });
 }
 
@@ -91,11 +84,11 @@ function sendPeerMessage(socket, messageId, payload) {
   const messageSize = (payload ? payload.length : 0) + 1;
   const buffer = Buffer.alloc(4 + messageSize, 0);
 
-  buffer.writeUInt32BE(messageSize, 0); // Message length prefix (4 bytes)
-  buffer.writeUInt8(messageId, 4); // Message ID (1 byte)
+  buffer.writeUInt32BE(messageSize, 0);
+  buffer.writeUInt8(messageId, 4);
 
   if (payloadBuffer) {
-    payloadBuffer.copy(buffer, 5); // Payload (variable size)
+    payloadBuffer.copy(buffer, 5);
   }
 
   socket.write(buffer);
@@ -107,11 +100,7 @@ function parsePeerMessageResponse(response) {
   const messageId = response.readUint8(4);
   const payload = response.length > 5 ? response.subarray(5) : null;
 
-  return {
-    messageId,
-    messageSize,
-    payload,
-  };
+  return { messageId, messageSize, payload };
 }
 
 async function sendInterestedMessage(socket) {
@@ -141,34 +130,28 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
 }
 
 async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const blockSize = calculateBlockSize(pieceIndex, torrent.info, blockOffset);
-      const payload = Buffer.alloc(12);
-      payload.writeUInt32BE(pieceIndex, 0);
-      payload.writeUInt32BE(blockOffset, 4);
-      payload.writeUInt32BE(blockSize, 8);
-      console.log(`Sending message. Piece index ${pieceIndex}, Block offset: ${blockOffset}, Block size: ${blockSize}`);
-      sendPeerMessage(socket, MessageId.REQUEST, payload);
-      const response = Buffer.alloc(blockSize);
-      let responseOffset = 0;
-      do {
-        const subResponse = await fetchResponse();
-        subResponse.copy(response, responseOffset);
-        responseOffset += subResponse.length;
-        console.log(`Response length: ${response.length}`);
-      } while (response.length < blockSize);
+  const blockSize = calculateBlockSize(pieceIndex, torrent.info, blockOffset);
+  const payload = Buffer.alloc(12);
+  payload.writeUInt32BE(pieceIndex, 0);
+  payload.writeUInt32BE(blockOffset, 4);
+  payload.writeUInt32BE(blockSize, 8);
+  console.log(`Sending message. Piece index ${pieceIndex}, Block offset: ${blockOffset}, Block size: ${blockSize}`);
+  sendPeerMessage(socket, MessageId.REQUEST, payload);
+  const response = Buffer.alloc(blockSize);
+  let responseOffset = 0;
+  do {
+    const subResponse = await fetchResponse();
+    subResponse.copy(response, responseOffset);
+    responseOffset += subResponse.length;
+    console.log(`Response length: ${response.length}`);
+  } while (response.length < blockSize);
 
-      const { messageId, payload: blockPayload } = parsePeerMessageResponse(response);
-      if (messageId !== MessageId.PIECE) {
-        reject(new Error(`Invalid download response: ${messageId}`));
-      }
+  const { messageId, payload: blockPayload } = parsePeerMessageResponse(response);
+  if (messageId !== MessageId.PIECE) {
+    throw new Error(`Invalid download response: ${messageId}`);
+  }
 
-      resolve({ pieceIndex, blockOffset, blockPayload });
-    } catch (err) {
-      reject(err);
-    }
-  });
+  return { pieceIndex, blockOffset, blockPayload };
 }
 
 async function downloadPiece(socket, pieceIndex, torrent) {
