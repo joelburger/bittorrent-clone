@@ -176,7 +176,6 @@ async function downloadPiece(socket, pieceIndex, torrent) {
   let blockOffset = 0;
   await sendInterestedMessage(socket);
   const pieceBuffer = Buffer.alloc(pieceLength);
-  const downloadBlockPromises = [];
   while (blockOffset < pieceLength) {
     const startTime = Date.now();
     const { blockPayload } = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
