@@ -144,18 +144,8 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
   return pieceLength * numberOfPieces - totalFileLength;
 }
 
-function pause(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-async function downloadPiece(socket, pieceIndex, torrent) {
-  const pieceLength = torrent.info['piece length'];
-  let blockOffset = 0;
-  await sendInterestedMessage(socket);
-  const pieceBuffer = Buffer.alloc(pieceLength);
-  while (blockOffset < pieceLength) {
-    const startTime = Date.now();
-
+async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
+  return new Promise(async (resolve, reject) => {
     const blockSize = calculateBlockSize(pieceIndex, torrent.info, blockOffset);
     const payload = Buffer.alloc(12);
     payload.writeUInt32BE(pieceIndex, 0);
@@ -172,12 +162,26 @@ async function downloadPiece(socket, pieceIndex, torrent) {
       console.log(`response length: ${response.length}`);
     } while (response.length < blockSize);
 
-    const { messageId } = parsePeerMessageResponse(response);
+    const { messageId, payload: blockPayload } = parsePeerMessageResponse(response);
     if (messageId !== MessageId.PIECE) {
-      throw new Error(`Invalid download response: ${messageId}`);
+      reject(`Invalid download response: ${messageId}`);
     }
+
+    resolve({ pieceIndex, blockOffset, blockPayload });
+  });
+}
+
+async function downloadPiece(socket, pieceIndex, torrent) {
+  const pieceLength = torrent.info['piece length'];
+  let blockOffset = 0;
+  await sendInterestedMessage(socket);
+  const pieceBuffer = Buffer.alloc(pieceLength);
+  const downloadBlockPromises = [];
+  while (blockOffset < pieceLength) {
+    const startTime = Date.now();
+    const { blockPayload } = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
     console.log(`Piece ${pieceIndex}, Offset ${blockOffset} successfully downloaded in ${Date.now() - startTime}`);
-    response.copy(pieceBuffer, blockOffset);
+    blockPayload.copy(pieceBuffer, blockOffset);
     blockOffset += DEFAULT_BLOCK_SIZE;
   }
   return pieceBuffer;
@@ -199,9 +203,6 @@ async function handleCommand(parameters) {
   console.log(firstPeer);
 
   const socket = await connect(firstPeer.host, firstPeer.port, dataEventHandler);
-  socket.on('end', () => {
-    console.log('socket end');
-  });
 
   try {
     await performHandshake(socket, torrent);

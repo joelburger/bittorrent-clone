@@ -13,6 +13,10 @@ async function connect(host, port, dataEventHandler) {
     console.log(`Connected to ${socket.remoteAddress}:${socket.remotePort}`);
   });
 
+  socket.on('end', () => {
+    console.log('Socket end');
+  });
+
   await socket.connect({ host, port });
 
   return socket;
