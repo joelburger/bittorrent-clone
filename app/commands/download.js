@@ -3,6 +3,7 @@ const { fetchPeers, createHandshakeRequest, splitPieces } = require('../utils/to
 const { readFile } = require('fs/promises');
 const { connect, disconnect } = require('../utils/network');
 const { writeFileSync } = require('fs');
+const { sha1Hash } = require('../utils/encoder');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
@@ -72,7 +73,7 @@ function fetchResponse() {
           resolve(Buffer.concat(connectionState.data));
           connectionState.data = [];
         }
-      }, 1000),
+      }, 900),
     );
   });
 }
@@ -169,7 +170,6 @@ async function downloadPiece(socket, pieceIndex, torrent) {
       subResponse.copy(response, responseOffset);
       responseOffset += subResponse.length;
       console.log(`response length: ${response.length}`);
-      //await pause(500);
     } while (response.length < blockSize);
 
     const { messageId } = parsePeerMessageResponse(response);
@@ -181,6 +181,10 @@ async function downloadPiece(socket, pieceIndex, torrent) {
     blockOffset += DEFAULT_BLOCK_SIZE;
   }
   return pieceBuffer;
+}
+
+function getPieceHash(torrent, pieceIndex) {
+  return splitPieces(torrent.info.pieces)[pieceIndex].toString('hex');
 }
 
 async function handleCommand(parameters) {
@@ -203,6 +207,9 @@ async function handleCommand(parameters) {
     await performHandshake(socket, torrent);
 
     const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
+
+    console.log('actual', sha1Hash(pieceBuffer, 'hex'));
+    console.log('expected', getPieceHash(torrent, pieceIndex));
     console.log(`download finished. saving to ${outputFilePath}`);
     writeFileSync(outputFilePath, Buffer.from(pieceBuffer));
   } catch (err) {
