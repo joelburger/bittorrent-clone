@@ -34,11 +34,6 @@ function dataEventHandler(data) {
   connectionState.data.push(data);
 }
 
-function clearTimers(timeoutIds, intervalIds) {
-  timeoutIds.forEach(clearTimeout);
-  intervalIds.forEach(clearInterval);
-}
-
 function validateHandshakeResponse(handshakeResponse) {
   if (!handshakeResponse || handshakeResponse.length < 68) {
     throw new Error('Invalid handshake response');
