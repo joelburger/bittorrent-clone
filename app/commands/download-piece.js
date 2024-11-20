@@ -1,58 +1,127 @@
-const { sendHandshake, splitPieces, fetchPeers } = require('../utils/torrent');
-const { writeFileSync } = require('fs');
-const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
-const { disconnect } = require('../utils/network');
+const { fetchPeers, createHandshakeRequest, splitPieces } = require('../utils/torrent');
+const { readFile } = require('fs/promises');
+const { connect, disconnect } = require('../utils/network');
+const { writeFileSync } = require('fs');
+const { sha1Hash } = require('../utils/encoder');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
-function sendMessage(socket, messageId, payload) {
+const Status = Object.freeze({
+  WAITING_ON_RESPONSE: 'waiting',
+  RESPONSE_RECEIVED: 'response-received',
+});
+
+const MessageId = Object.freeze({
+  CHOKE: 0,
+  UNCHOKE: 1,
+  INTERESTED: 2,
+  NOT_INTERESTED: 3,
+  HAVE: 4,
+  BITFIELD: 5,
+  REQUEST: 6,
+  PIECE: 7,
+  CANCEL: 8,
+});
+
+const connectionState = {
+  status: undefined,
+  data: [],
+};
+
+function dataEventHandler(data) {
+  console.log(`Response received: ${data.length} bytes`);
+  connectionState.status = Status.RESPONSE_RECEIVED;
+  connectionState.data.push(data);
+}
+
+function clearTimers(timeoutIds, intervalIds) {
+  timeoutIds.forEach(clearTimeout);
+  intervalIds.forEach(clearInterval);
+}
+
+function validateHandshakeResponse(handshakeResponse) {
+  if (!handshakeResponse || handshakeResponse.length < 68) {
+    throw new Error('Invalid handshake response');
+  }
+
+  const protocolLength = handshakeResponse.readUint8(0);
+  const protocol = handshakeResponse.subarray(1, protocolLength + 1).toString();
+
+  if (protocol !== 'BitTorrent protocol') {
+    throw new Error('Invalid handshake response');
+  }
+}
+
+function fetchResponse() {
+  return new Promise((resolve, reject) => {
+    const timeoutIds = [];
+    const intervalIds = [];
+
+    timeoutIds.push(
+      setTimeout(() => {
+        clearTimers(timeoutIds, intervalIds);
+        reject(new Error('Request timeout'));
+      }, 5000),
+    );
+
+    intervalIds.push(
+      setInterval(() => {
+        if (connectionState.status === Status.RESPONSE_RECEIVED) {
+          clearTimers(timeoutIds, intervalIds);
+          resolve(Buffer.concat(connectionState.data));
+          connectionState.data = [];
+        }
+      }, 900),
+    );
+  });
+}
+
+async function performHandshake(socket, torrent) {
+  socket.write(createHandshakeRequest(torrent.info));
+  connectionState.status = Status.WAITING_ON_RESPONSE;
+
+  const response = await fetchResponse();
+  validateHandshakeResponse(response);
+  console.log('Handshake successful');
+}
+
+function sendPeerMessage(socket, messageId, payload) {
   const payloadBuffer = payload ? Buffer.from(payload) : undefined;
   const messageSize = (payload ? payload.length : 0) + 1;
   const buffer = Buffer.alloc(4 + messageSize, 0);
 
   buffer.writeUInt32BE(messageSize, 0); // Message length prefix (4 bytes)
   buffer.writeUInt8(messageId, 4); // Message ID (1 byte)
+
   if (payloadBuffer) {
     payloadBuffer.copy(buffer, 5); // Payload (variable size)
   }
 
   socket.write(buffer);
-
-  return buffer;
+  connectionState.status = Status.WAITING_ON_RESPONSE;
 }
 
-function removeAllListeners(socket) {
-  socket.removeAllListeners('data');
-  socket.removeAllListeners('error');
+function parsePeerMessageResponse(response) {
+  const messageSize = response.readUInt32BE(0);
+  const messageId = response.readUint8(4);
+  const payload = response.length > 5 ? response.subarray(5) : null;
+
+  return {
+    messageId,
+    messageSize,
+    payload,
+  };
 }
 
-async function receiveResponse(socket) {
-  return new Promise((resolve, reject) => {
-    socket.on('data', (data) => {
-      const messageSize = data.readUInt32BE(0);
-      const messageId = data.readUint8(4);
-      const payload = messageSize > 1 ? data.subarray(5) : null;
-      removeAllListeners(socket);
-      resolve({ messageSize, messageId, payload });
-    });
-
-    socket.on('error', (err) => {
-      removeAllListeners(socket);
-      reject(err);
-    });
-  });
-}
-
-async function downloadBlock(socket, pieceIndex, blockOffset, blockSize) {
-  const requestPayload = Buffer.alloc(12);
-  requestPayload.writeUInt32BE(pieceIndex, 0);
-  requestPayload.writeUInt32BE(blockOffset, 4);
-  requestPayload.writeUInt32BE(blockSize, 8);
-  sendMessage(socket, 6, requestPayload);
-  console.log('download block', { pieceIndex, blockOffset, blockSize });
-
-  return receiveResponse(socket);
+async function sendInterestedMessage(socket) {
+  await sendPeerMessage(socket, MessageId.INTERESTED);
+  const response = await fetchResponse();
+  const { messageId } = parsePeerMessageResponse(response);
+  if (messageId !== MessageId.UNCHOKE) {
+    throw new Error('Unchoke not received');
+  }
+  console.log('Unchoke received');
 }
 
 function calculateBlockSize(pieceIndex, info, blockOffset) {
@@ -60,12 +129,10 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
   const numberOfPieces = splitPieces(info.pieces).length;
   const totalFileLength = info.length;
 
-  // if this is not the last piece, immediately return the default block size
   if (pieceIndex + 1 < numberOfPieces) {
     return DEFAULT_BLOCK_SIZE;
   }
 
-  // if this is not the last block, return the default block size
   if (blockOffset + DEFAULT_BLOCK_SIZE < pieceLength) {
     return DEFAULT_BLOCK_SIZE;
   }
@@ -73,38 +140,50 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
   return pieceLength * numberOfPieces - totalFileLength;
 }
 
-async function downloadPiece(socket, pieceIndex, info) {
-  const output = [];
-  let blockOffset = 0;
-  while (blockOffset < info['piece length']) {
-    let retryCount = 0;
-    let messageId, messageSize, payload;
-    const blockSize = calculateBlockSize(pieceIndex, info, blockOffset);
-    do {
-      ({ messageId, messageSize, payload } = await downloadBlock(socket, pieceIndex, blockOffset, blockSize));
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      retryCount += 1;
-    } while (messageId !== 7 && retryCount <= 10);
+async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const blockSize = calculateBlockSize(pieceIndex, torrent.info, blockOffset);
+      const payload = Buffer.alloc(12);
+      payload.writeUInt32BE(pieceIndex, 0);
+      payload.writeUInt32BE(blockOffset, 4);
+      payload.writeUInt32BE(blockSize, 8);
+      console.log(`Sending message. Piece index ${pieceIndex}, Block offset: ${blockOffset}, Block size: ${blockSize}`);
+      sendPeerMessage(socket, MessageId.REQUEST, payload);
+      const response = Buffer.alloc(blockSize);
+      let responseOffset = 0;
+      do {
+        const subResponse = await fetchResponse();
+        subResponse.copy(response, responseOffset);
+        responseOffset += subResponse.length;
+        console.log(`Response length: ${response.length}`);
+      } while (response.length < blockSize);
 
-    const payloadData = payload.subarray(8).length;
+      const { messageId, payload: blockPayload } = parsePeerMessageResponse(response);
+      if (messageId !== MessageId.PIECE) {
+        reject(new Error(`Invalid download response: ${messageId}`));
+      }
 
-    console.log('>', {
-      pieceIndex,
-      messageId,
-      messageSize,
-      payloadIndex: payload.readUInt32BE(0),
-      payloadOffset: payload.readUInt32BE(4),
-      payloadDataSize: payloadData.length,
-    });
-
-    if (messageId === 7) {
-      output.push(...Array.from(payload.subarray(8)));
-    } else {
-      throw new Error(`unexpected message ID response: ${messageId}`);
+      resolve({ pieceIndex, blockOffset, blockPayload });
+    } catch (err) {
+      reject(err);
     }
+  });
+}
+
+async function downloadPiece(socket, pieceIndex, torrent) {
+  const pieceLength = torrent.info['piece length'];
+  let blockOffset = 0;
+  await sendInterestedMessage(socket);
+  const pieceBuffer = Buffer.alloc(pieceLength);
+  while (blockOffset < pieceLength) {
+    const startTime = Date.now();
+    const { blockPayload } = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
+    console.log(`Piece ${pieceIndex}, Offset ${blockOffset} successfully downloaded in ${Date.now() - startTime}ms`);
+    blockPayload.copy(pieceBuffer, blockOffset);
     blockOffset += DEFAULT_BLOCK_SIZE;
   }
-  return output;
+  return pieceBuffer;
 }
 
 async function handleCommand(parameters) {
@@ -113,22 +192,20 @@ async function handleCommand(parameters) {
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
   const addresses = await fetchPeers(torrent);
-  const [firstPeer, secondPeer, thirdPeer] = addresses;
+  const [firstPeer] = addresses;
 
-  let socket, handshakeResponse;
+  console.log(torrent.info);
+  console.log(firstPeer);
+
+  const socket = await connect(firstPeer.host, firstPeer.port, dataEventHandler);
+
   try {
-    ({ socket, data: handshakeResponse } = await sendHandshake(torrent.info, firstPeer));
-    console.log('handshake response', handshakeResponse.toString('hex'));
-
-    sendMessage(socket, 2);
-    console.log('Sent interested message');
-    const unchokeResponse = await receiveResponse(socket);
-    console.log('unchoke message received', { ...unchokeResponse });
-
-    const output = await downloadPiece(socket, pieceIndex, torrent.info);
-
-    console.log(`download finished. saving to ${outputFilePath}`);
-    writeFileSync(outputFilePath, Buffer.from(output));
+    await performHandshake(socket, torrent);
+    const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
+    console.log(`Download finished. Saving to ${outputFilePath}`);
+    writeFileSync(outputFilePath, Buffer.from(pieceBuffer));
+  } catch (err) {
+    console.error('Error during download:', err);
   } finally {
     disconnect(socket);
   }
