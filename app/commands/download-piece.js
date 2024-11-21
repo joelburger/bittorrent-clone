@@ -133,7 +133,7 @@ async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
   return { pieceIndex, blockOffset, blockPayload };
 }
 
-async function downloadPiece(sockets, pieceIndex, torrent) {
+async function downloadPiece(socket, pieceIndex, torrent) {
   const pieceLength = torrent.info['piece length'];
   const pieceBuffer = Buffer.alloc(pieceLength);
   let blockOffset = 0;
@@ -141,33 +141,21 @@ async function downloadPiece(sockets, pieceIndex, torrent) {
   let socketIndex = 0;
   while (blockOffset < pieceLength) {
     const startTime = Date.now();
-    const socket = sockets[socketIndex];
     const { blockPayload } = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
     console.log(
       `Socket ${socketIndex}, Piece ${pieceIndex}, Offset ${blockOffset} successfully downloaded in ${Date.now() - startTime}ms`,
     );
     blockPayload.copy(pieceBuffer, blockOffset);
     blockOffset += DEFAULT_BLOCK_SIZE;
-    socketIndex = (socketIndex + 1) % sockets.length; // Rotate to the next socket
   }
   return pieceBuffer;
 }
 
-async function initialiseSockets(peers, torrent) {
-  const sockets = [];
-  for (const peer of peers) {
-    const socket = await connect(peer.host, peer.port, dataEventHandler);
-    await performHandshake(socket, torrent);
-    await sendInterestedMessage(socket);
-    sockets.push(socket);
-  }
-  return sockets;
-}
-
-function disconnectSockets(sockets) {
-  for (const socket of sockets) {
-    disconnect(socket);
-  }
+async function initialiseSocket(peer, torrent) {
+  const socket = await connect(peer.host, peer.port, dataEventHandler);
+  await performHandshake(socket, torrent);
+  await sendInterestedMessage(socket);
+  return socket;
 }
 
 async function handleCommand(parameters) {
@@ -177,16 +165,16 @@ async function handleCommand(parameters) {
   const torrent = decodeBencode(buffer);
   const peers = await fetchPeers(torrent);
   const [firstPeer] = peers;
-  const sockets = await initialiseSockets([firstPeer], torrent);
+  const socket = await initialiseSocket(firstPeer, torrent);
 
   try {
-    const pieceBuffer = await downloadPiece(sockets, pieceIndex, torrent);
+    const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
     console.log(`Download finished. Saving to ${outputFilePath}`);
     writeFileSync(outputFilePath, Buffer.from(pieceBuffer));
   } catch (err) {
     console.error('Error during download:', err);
   } finally {
-    disconnectSockets(sockets);
+    disconnect(socket);
   }
 }
 
