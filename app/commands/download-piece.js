@@ -45,7 +45,7 @@ function fetchResponse(expectedResponseSize) {
     const timeoutId = setTimeout(() => {
       clearTimeout(timeoutId);
       reject(new Error('Request timeout'));
-    }, 5000);
+    }, 2000);
 
     const intervalId = setInterval(() => {
       const concatenatedData = Buffer.concat(connectionState.data);
@@ -54,7 +54,7 @@ function fetchResponse(expectedResponseSize) {
         resolve(Buffer.concat(connectionState.data));
         connectionState.data = [];
       }
-    }, 100);
+    }, 10);
   });
 }
 
