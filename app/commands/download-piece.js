@@ -6,11 +6,6 @@ const { writeFileSync } = require('fs');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
-const Status = {
-  WAITING_ON_RESPONSE: 'waiting',
-  RESPONSE_RECEIVED: 'response-received',
-};
-
 const MessageId = {
   CHOKE: 0,
   UNCHOKE: 1,
@@ -24,13 +19,11 @@ const MessageId = {
 };
 
 const connectionState = {
-  status: undefined,
   data: [],
 };
 
 function dataEventHandler(data) {
   console.log(`Response received: ${data.length} bytes`);
-  connectionState.status = Status.RESPONSE_RECEIVED;
   connectionState.data.push(data);
 }
 
@@ -47,7 +40,7 @@ function validateHandshakeResponse(handshakeResponse) {
   }
 }
 
-function fetchResponse() {
+function fetchResponse(expectedResponseSize) {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       clearTimeout(timeoutId);
@@ -55,20 +48,21 @@ function fetchResponse() {
     }, 5000);
 
     const intervalId = setInterval(() => {
-      if (connectionState.status === Status.RESPONSE_RECEIVED) {
+      const concatenatedData = Buffer.concat(connectionState.data);
+      if (concatenatedData.length >= expectedResponseSize) {
         clearInterval(intervalId);
         resolve(Buffer.concat(connectionState.data));
         connectionState.data = [];
       }
-    }, 900);
+    }, 100);
   });
 }
 
 async function performHandshake(socket, torrent) {
-  socket.write(createHandshakeRequest(torrent.info));
-  connectionState.status = Status.WAITING_ON_RESPONSE;
+  const handshakeRequest = createHandshakeRequest(torrent.info);
+  socket.write(handshakeRequest);
 
-  const response = await fetchResponse();
+  const response = await fetchResponse(handshakeRequest.length);
   validateHandshakeResponse(response);
   console.log('Handshake successful');
 }
@@ -86,7 +80,6 @@ function sendPeerMessage(socket, messageId, payload) {
   }
 
   socket.write(buffer);
-  connectionState.status = Status.WAITING_ON_RESPONSE;
 }
 
 function parsePeerMessageResponse(response) {
@@ -99,7 +92,7 @@ function parsePeerMessageResponse(response) {
 
 async function sendInterestedMessage(socket) {
   await sendPeerMessage(socket, MessageId.INTERESTED);
-  const response = await fetchResponse();
+  const response = await fetchResponse(5);
   const { messageId } = parsePeerMessageResponse(response);
   if (messageId !== MessageId.UNCHOKE) {
     throw new Error('Unchoke not received');
@@ -131,15 +124,7 @@ async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
   payload.writeUInt32BE(blockSize, 8);
   console.log(`Sending message. Piece index ${pieceIndex}, Block offset: ${blockOffset}, Block size: ${blockSize}`);
   sendPeerMessage(socket, MessageId.REQUEST, payload);
-  const response = Buffer.alloc(blockSize);
-  let responseOffset = 0;
-  do {
-    const subResponse = await fetchResponse();
-    subResponse.copy(response, responseOffset);
-    responseOffset += subResponse.length;
-    console.log(`Response length: ${response.length}`);
-  } while (response.length < blockSize);
-
+  const response = await fetchResponse(blockSize);
   const { messageId, payload: blockPayload } = parsePeerMessageResponse(response);
   if (messageId !== MessageId.PIECE) {
     throw new Error(`Invalid download response: ${messageId}`);
@@ -191,7 +176,8 @@ async function handleCommand(parameters) {
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
   const peers = await fetchPeers(torrent);
-  const sockets = await initialiseSockets(peers, torrent);
+  const [firstPeer] = peers;
+  const sockets = await initialiseSockets([firstPeer], torrent);
 
   try {
     const pieceBuffer = await downloadPiece(sockets, pieceIndex, torrent);
