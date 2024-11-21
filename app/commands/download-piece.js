@@ -110,7 +110,7 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
     return DEFAULT_BLOCK_SIZE;
   }
 
-  return pieceLength * numberOfPieces - totalFileLength;
+  return totalFileLength - pieceLength * (numberOfPieces - 1) - blockOffset;
 }
 
 function parseBlockPayload(expectedPieceIndex, expectedBlockOffset, expectedBlockSize, blockPayload) {
@@ -194,6 +194,9 @@ async function handleCommand(parameters) {
   const pieceIndex = Number(pieceIndexString);
   const buffer = await readFile(inputFile);
   const torrent = decodeTorrent(buffer);
+
+  console.log('torrent.info', torrent.info);
+
   const peers = await fetchPeers(torrent);
   const [firstPeer] = peers;
   const socket = await initialiseSocket(firstPeer, torrent);
