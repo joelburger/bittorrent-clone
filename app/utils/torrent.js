@@ -87,7 +87,7 @@ function createHandshakeRequest(info) {
   return buffer;
 }
 
-function splitPieces(pieces) {
+function splitPieceHashes(pieces) {
   const result = [];
   for (let i = 0; i < pieces.length; i += PIECES_LENGTH) {
     result.push(pieces.subarray(i, i + PIECES_LENGTH));
@@ -95,9 +95,16 @@ function splitPieces(pieces) {
   return result;
 }
 
+function decodeTorrent(buffer) {
+  const torrent = decodeBencode(buffer);
+  torrent.info.splitPieces = splitPieceHashes(torrent.info.pieces);
+
+  return torrent;
+}
+
 module.exports = {
   createHandshakeRequest,
   calculateInfoHash,
   fetchPeers,
-  splitPieces,
+  decodeTorrent,
 };

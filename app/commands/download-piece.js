@@ -1,8 +1,8 @@
-const { decodeBencode } = require('../utils/decoder');
-const { fetchPeers, createHandshakeRequest, splitPieces } = require('../utils/torrent');
+const { fetchPeers, createHandshakeRequest, decodeTorrent } = require('../utils/torrent');
 const { readFile } = require('fs/promises');
 const { connect, disconnect } = require('../utils/network');
 const { writeFileSync } = require('fs');
+const { sha1Hash } = require('../utils/encoder');
 
 const DEFAULT_BLOCK_SIZE = 16 * 1024;
 
@@ -42,17 +42,12 @@ function validateHandshakeResponse(handshakeResponse) {
 
 function fetchResponse(expectedResponseSize) {
   return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      clearTimeout(timeoutId);
-      reject(new Error('Request timeout'));
-    }, 2000);
-
     const intervalId = setInterval(() => {
       const concatenatedData = Buffer.concat(connectionState.data);
       if (concatenatedData.length >= expectedResponseSize) {
         clearInterval(intervalId);
-        resolve(concatenatedData);
         connectionState.data = [];
+        resolve(concatenatedData);
       }
     }, 10);
   });
@@ -102,7 +97,7 @@ async function sendInterestedMessage(socket) {
 
 function calculateBlockSize(pieceIndex, info, blockOffset) {
   const pieceLength = info['piece length'];
-  const numberOfPieces = splitPieces(info.pieces).length;
+  const numberOfPieces = info.splitPieces.length;
   const totalFileLength = info.length;
 
   if (pieceIndex + 1 < numberOfPieces) {
@@ -114,6 +109,23 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
   }
 
   return pieceLength * numberOfPieces - totalFileLength;
+}
+
+function parseBlockPayload(expectedPieceIndex, expectedBlockOffset, expectedBlockSize, blockPayload) {
+  const actualPieceIndex = blockPayload.readUInt32BE(0);
+  const actualBlockOffset = blockPayload.readUInt32BE(4);
+
+  if (actualPieceIndex !== expectedPieceIndex || actualBlockOffset !== expectedBlockOffset) {
+    throw new Error('Invalid block payload piece index or offset');
+  }
+
+  const block = blockPayload.slice(8);
+
+  if (block.length !== expectedBlockSize) {
+    throw new Error('Invalid block length');
+  }
+
+  return block;
 }
 
 async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
@@ -130,25 +142,42 @@ async function downloadBlock(socket, torrent, pieceIndex, blockOffset) {
     throw new Error(`Invalid download response: ${messageId}`);
   }
 
-  return { pieceIndex, blockOffset, blockPayload };
+  return parseBlockPayload(pieceIndex, blockOffset, blockSize, blockPayload);
+}
+
+function validatePieceHash(pieceBuffer, expectedPieceHash) {
+  const actualPieceHash = sha1Hash(pieceBuffer, 'hex');
+  const expectedPieceHashInHex = Buffer.from(expectedPieceHash).toString('hex');
+
+  if (expectedPieceHashInHex === actualPieceHash) {
+    console.log('Piece hash is valid');
+    return;
+  }
+
+  throw new Error(
+    `Invalid piece hash. Size: ${pieceBuffer.length}, Expected: ${expectedPieceHashInHex}, Actual: ${actualPieceHash}`,
+  );
 }
 
 async function downloadPiece(socket, pieceIndex, torrent) {
   const pieceLength = torrent.info['piece length'];
-  const pieceBuffer = Buffer.alloc(pieceLength);
+  const pieceArray = [];
   let blockOffset = 0;
 
-  let socketIndex = 0;
   while (blockOffset < pieceLength) {
     const startTime = Date.now();
-    const { blockPayload } = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
+    const block = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
     console.log(
-      `Socket ${socketIndex}, Piece ${pieceIndex}, Offset ${blockOffset} successfully downloaded in ${Date.now() - startTime}ms`,
+      `Piece ${pieceIndex}, Offset ${blockOffset}, Block length: ${block.length} successfully downloaded in ${Date.now() - startTime}ms`,
     );
-    blockPayload.copy(pieceBuffer, blockOffset);
+    pieceArray.push(...block);
     blockOffset += DEFAULT_BLOCK_SIZE;
   }
-  return pieceBuffer;
+
+  const pieceBuffer = Buffer.from(pieceArray);
+  validatePieceHash(pieceBuffer, torrent.info.splitPieces[pieceIndex]);
+
+  return Buffer.from(pieceBuffer);
 }
 
 async function initialiseSocket(peer, torrent) {
@@ -162,17 +191,18 @@ async function handleCommand(parameters) {
   const [, , outputFilePath, inputFile, pieceIndexString] = parameters;
   const pieceIndex = Number(pieceIndexString);
   const buffer = await readFile(inputFile);
-  const torrent = decodeBencode(buffer);
+  const torrent = decodeTorrent(buffer);
   const peers = await fetchPeers(torrent);
   const [firstPeer] = peers;
   const socket = await initialiseSocket(firstPeer, torrent);
 
   try {
     const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
-    console.log(`Download finished. Saving to ${outputFilePath}`);
+
+    console.log(`Download finished. Saving to ${outputFilePath}. Size: ${pieceBuffer.length}`);
     writeFileSync(outputFilePath, Buffer.from(pieceBuffer));
   } catch (err) {
-    console.error('Error during download:', err);
+    console.error('Failed to download piece:', err);
   } finally {
     disconnect(socket);
   }
