@@ -14,7 +14,7 @@ async function connect(host, port, dataEventHandler) {
   });
 
   socket.on('end', () => {
-    console.log('Socket end');
+    console.log('Connection end');
   });
 
   await socket.connect({ host, port });

@@ -55,6 +55,7 @@ function fetchResponse(expectedResponseSize) {
 
 async function performHandshake(socket, torrent) {
   const handshakeRequest = createHandshakeRequest(torrent.info);
+  console.log('Sending handshake message');
   socket.write(handshakeRequest);
 
   const response = await fetchResponse(handshakeRequest.length);
@@ -86,6 +87,7 @@ function parsePeerMessageResponse(response) {
 }
 
 async function sendInterestedMessage(socket) {
+  console.log('Sending interested message');
   await sendPeerMessage(socket, MessageId.INTERESTED);
   const response = await fetchResponse(5);
   const { messageId } = parsePeerMessageResponse(response);
@@ -116,7 +118,7 @@ function parseBlockPayload(expectedPieceIndex, expectedBlockOffset, expectedBloc
   const actualBlockOffset = blockPayload.readUInt32BE(4);
 
   if (actualPieceIndex !== expectedPieceIndex || actualBlockOffset !== expectedBlockOffset) {
-    throw new Error('Invalid block payload piece index or offset');
+    throw new Error('Invalid block payload. Piece index or offset is incorrect.');
   }
 
   const block = blockPayload.slice(8);
@@ -168,7 +170,7 @@ async function downloadPiece(socket, pieceIndex, torrent) {
     const startTime = Date.now();
     const block = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
     console.log(
-      `Piece ${pieceIndex}, Offset ${blockOffset}, Block length: ${block.length} successfully downloaded in ${Date.now() - startTime}ms`,
+      `Piece ${pieceIndex}, Offset ${blockOffset}, Block size: ${block.length} successfully fetched in ${Date.now() - startTime}ms`,
     );
     pieceArray.push(...block);
     blockOffset += DEFAULT_BLOCK_SIZE;
