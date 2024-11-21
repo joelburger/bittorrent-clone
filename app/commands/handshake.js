@@ -1,7 +1,27 @@
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
-const { sendHandshake } = require('../utils/torrent');
-const { disconnect } = require('../utils/network');
+const { createHandshakeRequest } = require('../utils/torrent');
+const { disconnect, connect } = require('../utils/network');
+
+async function sendHandshake(info, { host, port }) {
+  console.log(`Sending handshake to ${host}:${port}`);
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      const socket = await connect(host, port, (data) => {
+        console.log('Handshake successful');
+        resolve({ socket, data });
+      });
+
+      const buffer = createHandshakeRequest(info);
+
+      socket.write(buffer);
+    } catch (err) {
+      console.error('Handshake error', err);
+      reject(err);
+    }
+  });
+}
 
 async function handleCommand(parameters) {
   const [, inputFile, peer] = parameters;

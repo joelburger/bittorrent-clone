@@ -1,8 +1,6 @@
-const crypto = require('crypto');
 const { encodeInteger, encodeString, encodeBuffer, sha1Hash } = require('./encoder');
 const fetch = require('node-fetch');
 const { decodeBencode } = require('./decoder');
-const { connect } = require('./network');
 
 const PIECES_LENGTH = 20;
 
@@ -89,30 +87,6 @@ function createHandshakeRequest(info) {
   return buffer;
 }
 
-async function sendHandshake(info, { host, port }) {
-  const infoHashCode = calculateInfoHash(info, 'binary');
-
-  console.log(`Sending handshake to ${host}:${port}`);
-
-  return new Promise(async (resolve, reject) => {
-    try {
-      const socket = await connect(host, port);
-
-      socket.once('data', (data) => {
-        console.log('Handshake successful');
-        resolve({ socket, data });
-      });
-
-      const buffer = createHandshakeRequest(info);
-
-      socket.write(buffer);
-    } catch (err) {
-      console.error('Handshake error', err);
-      reject(err);
-    }
-  });
-}
-
 function splitPieces(pieces) {
   const result = [];
   for (let i = 0; i < pieces.length; i += PIECES_LENGTH) {
@@ -125,6 +99,5 @@ module.exports = {
   createHandshakeRequest,
   calculateInfoHash,
   fetchPeers,
-  sendHandshake,
   splitPieces,
 };

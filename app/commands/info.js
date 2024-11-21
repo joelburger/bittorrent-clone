@@ -1,6 +1,6 @@
 const { readFile } = require('fs/promises');
 const { decodeBencode } = require('../utils/decoder');
-const { calculateInfoHash } = require('../utils/torrent');
+const { calculateInfoHash, splitPieces } = require('../utils/torrent');
 
 async function handleCommand(parameters) {
   const [, inputFile] = parameters;
