@@ -51,7 +51,7 @@ function fetchResponse(expectedResponseSize) {
       const concatenatedData = Buffer.concat(connectionState.data);
       if (concatenatedData.length >= expectedResponseSize) {
         clearInterval(intervalId);
-        resolve(Buffer.concat(connectionState.data));
+        resolve(concatenatedData);
         connectionState.data = [];
       }
     }, 10);
