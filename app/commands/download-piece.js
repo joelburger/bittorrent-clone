@@ -170,7 +170,7 @@ async function downloadPiece(socket, pieceIndex, torrent) {
     const startTime = Date.now();
     const block = await downloadBlock(socket, torrent, pieceIndex, blockOffset);
     console.log(
-      `Piece ${pieceIndex}, Offset ${blockOffset}, Block size: ${block.length} successfully fetched in ${Date.now() - startTime}ms`,
+      `Piece ${pieceIndex}, Offset ${blockOffset}, Block size: ${block.length} successfully fetched in ${Date.now() - startTime} ms`,
     );
     pieceArray.push(...block);
     blockOffset += DEFAULT_BLOCK_SIZE;
@@ -183,9 +183,11 @@ async function downloadPiece(socket, pieceIndex, torrent) {
 }
 
 async function initialiseSocket(peer, torrent) {
+  const startTime = Date.now();
   const socket = await connect(peer.host, peer.port, dataEventHandler);
   await performHandshake(socket, torrent);
   await sendInterestedMessage(socket);
+  console.log(`Connected to peer in ${Date.now() - startTime} ms`);
   return socket;
 }
 
