@@ -200,8 +200,8 @@ async function handleCommand(parameters) {
   console.log('torrent.info', torrent.info);
 
   const peers = await fetchPeers(torrent);
-  const [firstPeer] = peers;
-  const socket = await initialiseSocket(firstPeer, torrent);
+  const [firstPeer, secondPeer] = peers;
+  const socket = await initialiseSocket(secondPeer, torrent);
 
   try {
     const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
