@@ -217,8 +217,6 @@ async function initialisePeerCommunication(peer, torrent) {
   return socket;
 }
 
-function handleDownloadPiece(socket, pieceIndex, torrent) {}
-
 async function handleCommand(parameters) {
   const [command, , outputFilePath, inputFile, pieceIndexString] = parameters;
 
