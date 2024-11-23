@@ -85,6 +85,7 @@ function isHandshakeResponse(handshakeResponse) {
 
 async function waitForConnectionStatus(expectedConnectionStatus, timeout = 5000) {
   return new Promise((resolve, reject) => {
+    let timeoutId;
     const intervalId = setInterval(() => {
       if (state.connectionStatus === expectedConnectionStatus) {
         clearInterval(intervalId);
@@ -93,7 +94,7 @@ async function waitForConnectionStatus(expectedConnectionStatus, timeout = 5000)
       }
     }, 1);
 
-    const timeoutId = setTimeout(() => {
+    timeoutId = setTimeout(() => {
       clearInterval(intervalId);
       reject(new Error(`Timeout while waiting for connection status of ${expectedConnectionStatus}`));
     }, timeout);
