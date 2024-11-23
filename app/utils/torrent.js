@@ -2,7 +2,23 @@ const { encodeInteger, encodeString, encodeBuffer, sha1Hash } = require('./encod
 const fetch = require('node-fetch');
 const { decodeBencode } = require('./decoder');
 
+const BLOCK_REQUEST_SIZE = 17;
+
 const PIECES_LENGTH = 20;
+
+const DEFAULT_BLOCK_SIZE = 16 * 1024;
+
+const MessageId = Object.freeze({
+  CHOKE: 0,
+  UNCHOKE: 1,
+  INTERESTED: 2,
+  NOT_INTERESTED: 3,
+  HAVE: 4,
+  BITFIELD: 5,
+  REQUEST: 6,
+  PIECE: 7,
+  CANCEL: 8,
+});
 
 function generatePeerId(length = 20) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -102,7 +118,85 @@ function decodeTorrent(buffer) {
   return torrent;
 }
 
+function createPeerMessage(messageId, payload) {
+  const payloadBuffer = payload ? Buffer.from(payload) : undefined;
+  const messageSize = (payload ? payload.length : 0) + 1;
+  const peerMessage = Buffer.alloc(4 + messageSize, 0);
+
+  peerMessage.writeUInt32BE(messageSize, 0);
+  peerMessage.writeUInt8(messageId, 4);
+
+  if (payloadBuffer) {
+    payloadBuffer.copy(peerMessage, 5);
+  }
+
+  return peerMessage;
+}
+
+function parsePeerMessage(message) {
+  const messageId = message.readUint8(0);
+  const payload = message.length > 1 ? message.subarray(1) : null;
+
+  return { messageId, payload };
+}
+
+function parseBlockPayload(blockPayload) {
+  const pieceIndex = blockPayload.readUInt32BE(0);
+  const blockOffset = blockPayload.readUInt32BE(4);
+  const block = blockPayload.slice(8);
+
+  return { pieceIndex, blockOffset, block };
+}
+
+function calculatePieceLength(pieceIndex, info) {
+  const pieceLength = info['piece length'];
+  const numberOfPieces = info.splitPieces.length;
+  const totalFileLength = info.length;
+
+  if (pieceIndex + 1 < numberOfPieces) {
+    return pieceLength;
+  }
+
+  return totalFileLength - pieceLength * (numberOfPieces - 1);
+}
+
+function calculateBlockSize(pieceIndex, info, blockOffset) {
+  const pieceLength = info['piece length'];
+  const numberOfPieces = info.splitPieces.length;
+  const totalFileLength = info.length;
+
+  if (pieceIndex + 1 < numberOfPieces) {
+    return DEFAULT_BLOCK_SIZE;
+  }
+
+  if (blockOffset + DEFAULT_BLOCK_SIZE < pieceLength) {
+    return DEFAULT_BLOCK_SIZE;
+  }
+
+  return totalFileLength - pieceLength * (numberOfPieces - 1) - blockOffset;
+}
+
+function createBlockRequest(torrent, pieceIndex, blockOffset) {
+  const blockSize = calculateBlockSize(pieceIndex, torrent.info, blockOffset);
+
+  const payload = Buffer.alloc(12);
+  payload.writeUInt32BE(pieceIndex, 0);
+  payload.writeUInt32BE(blockOffset, 4);
+  payload.writeUInt32BE(blockSize, 8);
+
+  const peerMessage = createPeerMessage(MessageId.REQUEST, payload);
+
+  return { blockSize, peerMessage };
+}
+
 module.exports = {
+  MessageId,
+  BLOCK_REQUEST_SIZE,
+  calculatePieceLength,
+  createBlockRequest,
+  parsePeerMessage,
+  parseBlockPayload,
+  createPeerMessage,
   createHandshakeRequest,
   calculateInfoHash,
   fetchPeers,
