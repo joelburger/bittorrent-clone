@@ -187,20 +187,25 @@ async function downloadPiece(socket, pieceIndex, torrent) {
     blockOffset += blockSize;
     totalBlockCount++;
 
-    if (
-      (state.outgoingBuffer.length >= MAXIMUM_OUTGOING_BUFFER_SIZE || blockOffset >= calculatedPieceLength) &&
-      state.incomingBuffer.length === 0
-    ) {
-      console.log(`Sending ${state.outgoingBuffer.length / BLOCK_REQUEST_SIZE} request messages to peer`);
-      socket.write(state.outgoingBuffer);
-      state.outgoingBuffer = Buffer.alloc(0);
-      //await pause(RATE_LIMIT_WAIT);
+    if (state.outgoingBuffer.length >= MAXIMUM_OUTGOING_BUFFER_SIZE && state.incomingBuffer.length === 0) {
+      flushOutgoingBuffer(socket);
     }
+  }
+
+  // flush any remaining messages in buffer
+  if (state.outgoingBuffer.length > 0 && state.incomingBuffer.length === 0) {
+    flushOutgoingBuffer(socket);
   }
 
   await waitForAllBlocks(totalBlockCount);
 
   return convertMapToBuffer(state.blocks);
+}
+
+function flushOutgoingBuffer(socket) {
+  console.log(`Sending ${state.outgoingBuffer.length / BLOCK_REQUEST_SIZE} request messages to peer`);
+  socket.write(state.outgoingBuffer);
+  state.outgoingBuffer = Buffer.alloc(0);
 }
 
 async function initialisePeerCommunication(peer, torrent) {
@@ -226,7 +231,7 @@ async function handleCommand(parameters) {
 
   console.log('peers', peers);
 
-  const socket = await initialisePeerCommunication(peers[1], torrent);
+  const socket = await initialisePeerCommunication(peers[0], torrent);
 
   try {
     const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
