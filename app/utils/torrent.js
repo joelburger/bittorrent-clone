@@ -157,11 +157,15 @@ function calculatePieceLength(pieceIndex, info) {
     return pieceLength;
   }
 
-  return totalFileLength - pieceLength * (numberOfPieces - 1);
+  const lastPieceLength = totalFileLength - pieceLength * (numberOfPieces - 1);
+
+  console.log(`calculating last piece length: ${lastPieceLength}`);
+
+  return lastPieceLength;
 }
 
-function calculateBlockSize(pieceIndex, info, blockOffset) {
-  const pieceLength = info['piece length'];
+function calculateBlockSize(pieceIndex, pieceLength, info, blockOffset) {
+  const defaultPieceLength = info['piece length'];
   const numberOfPieces = info.splitPieces.length;
   const totalFileLength = info.length;
 
@@ -173,11 +177,11 @@ function calculateBlockSize(pieceIndex, info, blockOffset) {
     return DEFAULT_BLOCK_SIZE;
   }
 
-  return totalFileLength - pieceLength * (numberOfPieces - 1) - blockOffset;
+  return totalFileLength - defaultPieceLength * (numberOfPieces - 1) - blockOffset;
 }
 
-function createBlockRequest(torrent, pieceIndex, blockOffset) {
-  const blockSize = calculateBlockSize(pieceIndex, torrent.info, blockOffset);
+function createBlockRequest(torrent, pieceIndex, pieceLength, blockOffset) {
+  const blockSize = calculateBlockSize(pieceIndex, pieceLength, torrent.info, blockOffset);
 
   const payload = Buffer.alloc(12);
   payload.writeUInt32BE(pieceIndex, 0);

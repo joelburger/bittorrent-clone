@@ -177,7 +177,7 @@ async function downloadPiece(socket, pieceIndex, torrent) {
 
   state.outgoingBuffer = Buffer.alloc(0);
   while (blockOffset < calculatedPieceLength) {
-    const { blockSize, peerMessage } = createBlockRequest(torrent, pieceIndex, blockOffset);
+    const { blockSize, peerMessage } = createBlockRequest(torrent, pieceIndex, calculatedPieceLength, blockOffset);
     console.log(
       `\x1b[32mAdding block request to outgoing buffer. Piece index ${pieceIndex}, Block offset: ${blockOffset}, Block size: ${blockSize}\x1b[0m`,
     );
@@ -194,6 +194,7 @@ async function downloadPiece(socket, pieceIndex, torrent) {
 
   // flush any remaining messages in buffer
   if (state.outgoingBuffer.length > 0 && state.incomingBuffer.length === 0) {
+    console.log('Flushing remaining outgoing buffer');
     flushOutgoingBuffer(socket);
   }
 
