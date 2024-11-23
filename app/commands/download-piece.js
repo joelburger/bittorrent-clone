@@ -15,8 +15,8 @@ const { connect, disconnect } = require('../utils/network');
 const { writeFileSync } = require('fs');
 const { sha1Hash } = require('../utils/encoder');
 
-const MAXIMUM_OUTGOING_BUFFER_SIZE = BLOCK_REQUEST_SIZE * 2; //  maximum of block request messages in the outgoing buffer
-const RATE_LIMIT_WAIT = 500;
+const MAXIMUM_OUTGOING_BUFFER_SIZE = BLOCK_REQUEST_SIZE * 4; //  maximum of block request messages in the outgoing buffer
+const RATE_LIMIT_WAIT = 400;
 
 const PeerConnectionStatus = Object.freeze({
   PENDING: 'pending',
