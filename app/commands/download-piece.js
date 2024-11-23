@@ -15,7 +15,7 @@ const { connect, disconnect } = require('../utils/network');
 const { writeFileSync } = require('fs');
 const { sha1Hash } = require('../utils/encoder');
 
-const MAXIMUM_OUTGOING_BUFFER_SIZE = BLOCK_REQUEST_SIZE * 4; //  maximum of block request messages in the outgoing buffer
+const MAXIMUM_OUTGOING_BUFFER_SIZE = BLOCK_REQUEST_SIZE * 5; //  maximum of block request messages in the outgoing buffer
 const RATE_LIMIT_WAIT = 400;
 
 const PeerConnectionStatus = Object.freeze({
@@ -28,6 +28,7 @@ const state = {
   blocks: new Map(),
   connectionStatus: PeerConnectionStatus.PENDING,
   incomingBuffer: Buffer.alloc(0),
+  outgoingBuffer: Buffer.alloc(0),
 };
 
 function dataEventHandler(chunk) {
@@ -174,23 +175,26 @@ async function downloadPiece(socket, pieceIndex, torrent) {
 
   const calculatedPieceLength = calculatePieceLength(pieceIndex, torrent.info);
 
-  let outgoingBuffer = Buffer.alloc(0);
+  state.outgoingBuffer = Buffer.alloc(0);
   while (blockOffset < calculatedPieceLength) {
     const { blockSize, peerMessage } = createBlockRequest(torrent, pieceIndex, blockOffset);
     console.log(
       `\x1b[32mAdding block request to outgoing buffer. Piece index ${pieceIndex}, Block offset: ${blockOffset}, Block size: ${blockSize}\x1b[0m`,
     );
 
-    outgoingBuffer = Buffer.concat([outgoingBuffer, peerMessage]);
+    state.outgoingBuffer = Buffer.concat([state.outgoingBuffer, peerMessage]);
 
     blockOffset += blockSize;
     totalBlockCount++;
 
-    if (outgoingBuffer.length >= MAXIMUM_OUTGOING_BUFFER_SIZE || blockOffset >= calculatedPieceLength) {
-      console.log(`Sending ${outgoingBuffer.length / BLOCK_REQUEST_SIZE} request messages to peer`);
-      socket.write(outgoingBuffer);
-      outgoingBuffer = Buffer.alloc(0);
-      await pause(RATE_LIMIT_WAIT);
+    if (
+      (state.outgoingBuffer.length >= MAXIMUM_OUTGOING_BUFFER_SIZE || blockOffset >= calculatedPieceLength) &&
+      state.incomingBuffer.length === 0
+    ) {
+      console.log(`Sending ${state.outgoingBuffer.length / BLOCK_REQUEST_SIZE} request messages to peer`);
+      socket.write(state.outgoingBuffer);
+      state.outgoingBuffer = Buffer.alloc(0);
+      //await pause(RATE_LIMIT_WAIT);
     }
   }
 
