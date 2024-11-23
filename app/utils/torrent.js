@@ -69,7 +69,11 @@ async function fetchPeers(torrent) {
     const data = await response.arrayBuffer();
 
     const result = decodeBencode(Buffer.from(data));
-    return parsePeers(result.peers);
+    const peers = parsePeers(result.peers);
+
+    console.log('peers', peers);
+
+    return peers;
   } catch (err) {
     throw new Error(`Failed to fetch peers. Error: ${err.message}`);
   }
@@ -114,6 +118,12 @@ function splitPieceHashes(pieces) {
 function decodeTorrent(buffer) {
   const torrent = decodeBencode(buffer);
   torrent.info.splitPieces = splitPieceHashes(torrent.info.pieces);
+
+  console.log('----------------------------');
+  console.log(`file length: ${torrent.info.length}`);
+  console.log(`piece length: ${torrent.info['piece length']}`);
+  console.log(`number of pieces: ${torrent.info.splitPieces.length}`);
+  console.log('----------------------------');
 
   return torrent;
 }

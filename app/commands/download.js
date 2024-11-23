@@ -16,7 +16,6 @@ const { writeFileSync } = require('fs');
 const { sha1Hash } = require('../utils/encoder');
 
 const MAXIMUM_OUTGOING_BUFFER_SIZE = BLOCK_REQUEST_SIZE * 5; //  maximum of block request messages in the outgoing buffer
-const RATE_LIMIT_WAIT = 400;
 
 const PeerConnectionStatus = Object.freeze({
   PENDING: 'pending',
@@ -162,13 +161,6 @@ function validatePieceHash(pieceBuffer, expectedPieceHash) {
   );
 }
 
-async function pause(timeout = 1000) {
-  console.log(`\x1b[31mPausing for ${timeout} ms to avoid being rate limited\x1b[0m`);
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(), timeout);
-  });
-}
-
 async function downloadPiece(socket, pieceIndex, torrent) {
   let blockOffset = 0;
   let totalBlockCount = 0;
@@ -218,30 +210,36 @@ async function initialisePeerCommunication(peer, torrent) {
   return socket;
 }
 
+function handleDownloadPiece(socket, pieceIndex, torrent) {}
+
 async function handleCommand(parameters) {
-  const [, , outputFilePath, inputFile, pieceIndexString] = parameters;
-  const pieceIndex = Number(pieceIndexString);
+  const [, command, outputFilePath, inputFile, pieceIndexString] = parameters;
+
+  const pieceIndex = pieceIndexString ? Number(pieceIndexString) : null;
   const buffer = await readFile(inputFile);
   const torrent = decodeTorrent(buffer);
-
-  console.log(`file length: ${torrent.info.length}`);
-  console.log(`piece length: ${torrent.info['piece length']}`);
-  console.log(`number of pieces: ${torrent.info.splitPieces.length}`);
-
   const peers = await fetchPeers(torrent);
 
-  console.log('peers', peers);
+  let workQueue;
+  if (command === 'download') {
+    workQueue = Array.from({ length: torrent.info.splitPieces.length }, (_, index) => index);
+  } else {
+    workQueue = [pieceIndex];
+  }
 
   const socket = await initialisePeerCommunication(peers[0], torrent);
-
   try {
-    const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
-    validatePieceHash(pieceBuffer, torrent.info.splitPieces[pieceIndex]);
+    let fileBuffer = Buffer.alloc(0);
+    for (const pieceIndex of workQueue) {
+      const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
+      validatePieceHash(pieceBuffer, torrent.info.splitPieces[pieceIndex]);
+      fileBuffer = Buffer.concat([fileBuffer, pieceBuffer]);
+    }
 
-    console.log(`Download finished. Saving to ${outputFilePath}. Size: ${pieceBuffer.length}`);
-    writeFileSync(outputFilePath, Buffer.from(pieceBuffer));
+    console.log(`Download finished. Saving to ${outputFilePath}. Size: ${fileBuffer.length}`);
+    writeFileSync(outputFilePath, Buffer.from(fileBuffer));
   } catch (err) {
-    console.error('Failed to download piece:', err);
+    console.error('Failed to download file:', err);
   } finally {
     disconnect(socket);
   }
