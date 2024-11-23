@@ -157,27 +157,14 @@ function calculatePieceLength(pieceIndex, info) {
     return pieceLength;
   }
 
-  const lastPieceLength = totalFileLength - pieceLength * (numberOfPieces - 1);
-
-  console.log(`calculating last piece length: ${lastPieceLength}`);
-
-  return lastPieceLength;
+  return totalFileLength - pieceLength * (numberOfPieces - 1);
 }
 
 function calculateBlockSize(pieceIndex, pieceLength, info, blockOffset) {
-  const defaultPieceLength = info['piece length'];
-  const numberOfPieces = info.splitPieces.length;
-  const totalFileLength = info.length;
+  const isLastPiece = pieceIndex + 1 === info.splitPieces.length;
+  const remainingLength = info.length - info['piece length'] * (info.splitPieces.length - 1) - blockOffset;
 
-  if (pieceIndex + 1 < numberOfPieces) {
-    return DEFAULT_BLOCK_SIZE;
-  }
-
-  if (blockOffset + DEFAULT_BLOCK_SIZE < pieceLength) {
-    return DEFAULT_BLOCK_SIZE;
-  }
-
-  return totalFileLength - defaultPieceLength * (numberOfPieces - 1) - blockOffset;
+  return isLastPiece && blockOffset + DEFAULT_BLOCK_SIZE >= pieceLength ? remainingLength : DEFAULT_BLOCK_SIZE;
 }
 
 function createBlockRequest(torrent, pieceIndex, pieceLength, blockOffset) {
