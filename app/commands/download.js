@@ -30,6 +30,13 @@ const state = {
   outgoingBuffer: Buffer.alloc(0),
 };
 
+function resetState() {
+  state.blocks = new Map();
+  state.incomingBuffer = PeerConnectionStatus.PENDING;
+  state.incomingBuffer = Buffer.alloc(0);
+  state.outgoingBuffer = Buffer.alloc(0);
+}
+
 function dataEventHandler(chunk) {
   console.log(`Response received: ${chunk.length} bytes`);
   state.incomingBuffer = Buffer.concat([state.incomingBuffer, chunk]);
@@ -213,7 +220,7 @@ async function initialisePeerCommunication(peer, torrent) {
 function handleDownloadPiece(socket, pieceIndex, torrent) {}
 
 async function handleCommand(parameters) {
-  const [, command, outputFilePath, inputFile, pieceIndexString] = parameters;
+  const [command, , outputFilePath, inputFile, pieceIndexString] = parameters;
 
   const pieceIndex = pieceIndexString ? Number(pieceIndexString) : null;
   const buffer = await readFile(inputFile);
@@ -234,6 +241,7 @@ async function handleCommand(parameters) {
       const pieceBuffer = await downloadPiece(socket, pieceIndex, torrent);
       validatePieceHash(pieceBuffer, torrent.info.splitPieces[pieceIndex]);
       fileBuffer = Buffer.concat([fileBuffer, pieceBuffer]);
+      resetState();
     }
 
     console.log(`Download finished. Saving to ${outputFilePath}. Size: ${fileBuffer.length}`);
