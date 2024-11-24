@@ -5,28 +5,8 @@ function createMagnetHandshakeRequest(infoHash) {
   const buffer = Buffer.alloc(68);
   buffer.writeUInt8(19, 0); // Length of the protocol string
   buffer.write('BitTorrent protocol', 1); // Protocol string
-
-  // extension support
-  // During the "Peer handshake" stage, the handshake message includes eight reserved bytes (64 bits), all set to zero.
-  // To signal support for extensions, a client must set the 20th bit from the right (counting starts at 0) in the
-  // reserved bytes to 1.
-  //
-  // In Hex, here's how the reserved bytes will look like after setting the 20th bit from the right to 1:
-  //
-  // 00 00 00 00 00 10 00 00
-  // (10 in hex is 16 in decimal, which is 00010000 in binary)
-
-  //00 01 00 00 00 00 00 00 00 00 00 00
-
-  buffer.writeUInt8(0, 20);
-  buffer.writeUInt8(0, 21);
-  buffer.writeUInt8(0, 22);
-  buffer.writeUInt8(0, 23);
-  buffer.writeUInt8(0, 24);
+  buffer.fill(0, 20, 28);
   buffer.writeUInt8(0x10, 25);
-  buffer.writeUInt8(0, 26);
-  buffer.writeUInt8(0, 27);
-
   buffer.write(infoHash, 28, 'hex'); // Info hash (20 bytes)
   buffer.write(generatePeerId(), 48, 'binary'); // Peer ID (20 bytes)
 

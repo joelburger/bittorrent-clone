@@ -1,6 +1,5 @@
 const { parseMagnetLink, fetchMagnetPeers, createMagnetHandshakeRequest } = require('../utils/magnet');
 const { connect, disconnect } = require('../utils/network');
-const { createHandshakeRequest } = require('../utils/torrent');
 
 async function sendHandshake(infoHash, { host, port }) {
   return new Promise(async (resolve, reject) => {
