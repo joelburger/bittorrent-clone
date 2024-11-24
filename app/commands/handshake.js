@@ -4,17 +4,14 @@ const { createHandshakeRequest } = require('../utils/torrent');
 const { disconnect, connect } = require('../utils/network');
 
 async function sendHandshake(info, { host, port }) {
-  console.log(`Sending handshake to ${host}:${port}`);
-
   return new Promise(async (resolve, reject) => {
     try {
       const socket = await connect(host, port, (data) => {
         console.log('Handshake successful');
         resolve({ socket, data });
       });
-
+      console.log(`Sending handshake to ${host}:${port}`);
       const buffer = createHandshakeRequest(info);
-
       socket.write(buffer);
     } catch (err) {
       console.error('Handshake error', err);

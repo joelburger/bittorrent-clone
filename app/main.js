@@ -5,6 +5,7 @@ const handlePeers = require('./commands/peers');
 const handleHandshake = require('./commands/handshake');
 const handleDownload = require('./commands/download');
 const handleMagnetParse = require('./commands/magnet-parse');
+const handleMagnetHandshake = require('./commands/magnet-handshake');
 
 const handlers = {
   decode: handleDecode,
@@ -14,6 +15,7 @@ const handlers = {
   download_piece: handleDownload,
   download: handleDownload,
   magnet_parse: handleMagnetParse,
+  magnet_handshake: handleMagnetHandshake,
 };
 
 const parameters = process.argv.slice(2);

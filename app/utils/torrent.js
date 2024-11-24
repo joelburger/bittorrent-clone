@@ -202,4 +202,7 @@ module.exports = {
   calculateInfoHash,
   fetchPeers,
   decodeTorrent,
+  generatePeerId,
+  urlEncodeInfoHash,
+  parsePeers,
 };

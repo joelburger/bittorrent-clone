@@ -6,9 +6,9 @@ async function handleCommand(parameters) {
   const [, inputFile] = parameters;
   const buffer = await readFile(inputFile);
   const torrent = decodeBencode(buffer);
-  const addresses = await fetchPeers(torrent);
+  const peers = await fetchPeers(torrent);
 
-  addresses.forEach(({ host, port }) => {
+  peers.forEach(({ host, port }) => {
     console.log(`${host}:${port}`);
   });
 }
