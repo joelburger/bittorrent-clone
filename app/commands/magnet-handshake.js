@@ -30,7 +30,6 @@ function processPeerMessage(message) {
     extensionHandshakeReceived = true;
 
     const payload = message.subarray(1);
-    const extensionMessageId = payload.readUint8(0);
     const dictionary = payload.subarray(1);
     const decoded = decodeBencode(dictionary);
 
