@@ -24,24 +24,15 @@ function isHandshakeResponse(handshakeResponse) {
 }
 
 function processPeerMessage(message) {
-  // console.log('Peer message', message);
-
   const messageId = message.readUint8(0);
-
-  console.log(`messageId: ${messageId}`);
 
   if (messageId === 20) {
     extensionHandshakeReceived = true;
 
     const payload = message.subarray(1);
-    //console.log('payload:', payload);
-
     const extensionMessageId = payload.readUint8(0);
-    console.log('extensionMessageId', extensionMessageId);
-
     const dictionary = payload.subarray(1);
     const decoded = decodeBencode(dictionary);
-    console.log('decoded', decoded);
 
     peerMetadataExtensionId = decoded.m['ut_metadata'];
 
@@ -57,22 +48,18 @@ function dataEventHandler(chunk) {
     if (isHandshakeResponse(incomingBuffer)) {
       const { supportsExtension, peerId } = parseHandshake(incomingBuffer);
 
-      console.log(`supportsExtension: ${supportsExtension}`);
       console.log(`Peer ID: ${peerId}`);
       incomingBuffer = incomingBuffer.slice(68);
-
       handshakeReceived = true;
-
       continue;
     }
 
-    const messageLength = incomingBuffer.readUInt32BE(0); // Read the 4-byte length prefix
-    if (incomingBuffer.length < messageLength + 4) break; // Wait for more data
+    const messageLength = incomingBuffer.readUInt32BE(0);
+    if (incomingBuffer.length < messageLength + 4) break;
 
-    const message = incomingBuffer.slice(4, 4 + messageLength); // Extract complete message
+    const message = incomingBuffer.slice(4, 4 + messageLength);
     processPeerMessage(message);
-
-    incomingBuffer = incomingBuffer.slice(4 + messageLength); // Remove processed message
+    incomingBuffer = incomingBuffer.slice(4 + messageLength);
   }
 }
 
@@ -84,22 +71,9 @@ function parseHandshake(data) {
 }
 
 async function waitForHandshakeReceived() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const intervalId = setInterval(() => {
       if (handshakeReceived) {
-        console.log('Handshake received!');
-        clearInterval(intervalId);
-        resolve();
-      }
-    }, 1000);
-  });
-}
-
-async function waitForExtensionHandshakeReceived() {
-  return new Promise((resolve, reject) => {
-    const intervalId = setInterval(() => {
-      if (extensionHandshakeReceived) {
-        // console.log('Extension handshake received!');
         clearInterval(intervalId);
         resolve();
       }
@@ -109,7 +83,7 @@ async function waitForExtensionHandshakeReceived() {
 
 async function handleCommand(parameters) {
   const [, magnetLink] = parameters;
-  const { infoHash, fileName, trackerUrl } = parseMagnetLink(magnetLink);
+  const { infoHash, trackerUrl } = parseMagnetLink(magnetLink);
   const peers = await fetchMagnetPeers(infoHash, trackerUrl);
 
   const [peer] = peers;
@@ -117,7 +91,6 @@ async function handleCommand(parameters) {
   try {
     socket = await connect(peer.host, peer.port, dataEventHandler);
 
-    //console.log(`Sending handshake to ${peer.host}:${peer.port}`);
     const handshakeRequest = createMagnetHandshakeRequest(infoHash);
     socket.write(handshakeRequest);
 
@@ -126,14 +99,10 @@ async function handleCommand(parameters) {
     const extensionHandshakeRequest = createExtensionHandshakeRequest(peerMetadataExtensionId);
     socket.write(extensionHandshakeRequest);
 
-    socket.end();
-    process.exit(0);
-
-    //await waitForExtensionHandshakeReceived();
+    socket.destroySoon();
   } catch (err) {
     console.error('Handshake failed', err);
   } finally {
-    // console.log('Disconnecting socket');
     disconnect(socket);
   }
 }
