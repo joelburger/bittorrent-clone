@@ -7,16 +7,16 @@ async function connect(host, port, dataEventHandler) {
   socket.on('data', dataEventHandler);
 
   socket.on('close', () => {
-    console.log(`Connection closed after ${Date.now() - startTime} ms`);
+    //console.log(`Connection closed after ${Date.now() - startTime} ms`);
   });
 
   socket.on('connect', () => {
-    console.log(`Connected to ${socket.remoteAddress}:${socket.remotePort}`);
+    //console.log(`Connected to ${socket.remoteAddress}:${socket.remotePort}`);
     startTime = Date.now();
   });
 
   socket.on('end', () => {
-    console.log('Connection end');
+    //console.log('Connection end');
   });
 
   await socket.connect({ host, port });

@@ -1,25 +1,32 @@
 const { generatePeerId, urlEncodeInfoHash, parsePeers } = require('./torrent');
 const { decodeBencode } = require('./decoder');
 
-function createExtensionHandshakeRequest() {
-  const message = 'd1:md11:ut_metadatai44eee';
+function printBufferInDecimal(buffer) {
+  return Array.from(buffer).join(' ');
+}
+
+function createExtensionHandshakeRequest(peerMetadataExtensionId) {
+  const message = `d1:md11:ut_metadatai${peerMetadataExtensionId}eee`;
   const buffer = Buffer.alloc(4 + 1 + 1 + message.length);
   buffer.writeUInt32BE(1 + 1 + message.length, 0); // length prefix
   buffer.writeUInt8(20, 4); // message ID for all extensions
   buffer.writeUInt8(0, 5); // extension message id
-  buffer.write(message, 6, 'utf8');
+  buffer.write(message, 6, 'binary');
+
+  //console.log('extension handshake', printBufferInDecimal(buffer));
 
   return buffer;
 }
 
-function createMagnetHandshakeRequest(infoHash, queryExtensionSupport) {
+function createMagnetHandshakeRequest(infoHash) {
   const buffer = Buffer.alloc(68);
   buffer.writeUInt8(19, 0); // Length of the protocol string
   buffer.write('BitTorrent protocol', 1); // Protocol string
   buffer.fill(0, 20, 28);
-  if (queryExtensionSupport) {
-    buffer.writeUInt8(0x10, 25);
-  }
+
+  // signal support for extensions
+  buffer.writeUInt8(0x10, 25);
+
   buffer.write(infoHash, 28, 'hex'); // Info hash (20 bytes)
   buffer.write(generatePeerId(), 48, 'binary'); // Peer ID (20 bytes)
 
@@ -56,7 +63,7 @@ async function fetchMagnetPeers(infoHash, trackerUrl) {
     const result = decodeBencode(Buffer.from(data));
     const peers = parsePeers(result.peers);
 
-    console.log('peers', peers);
+    //console.log('peers', peers);
 
     return peers;
   } catch (err) {

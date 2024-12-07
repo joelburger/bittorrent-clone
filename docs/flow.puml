@@ -1,0 +1,13 @@
+@startuml
+
+autonumber
+client -> client: parse magnet link
+note left
+- tracker URL
+- info hash
+end note
+client -> tracker: get list of peers
+client -> peer: establish TCP connection
+client -> peer: send handshake
+peer -> client: send handshake
+@enduml
