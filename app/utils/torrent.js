@@ -205,4 +205,5 @@ module.exports = {
   generatePeerId,
   urlEncodeInfoHash,
   parsePeers,
+  splitPieceHashes,
 };

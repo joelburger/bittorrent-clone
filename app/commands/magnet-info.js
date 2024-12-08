@@ -7,10 +7,12 @@ const {
 } = require('../utils/magnet');
 const { connect, disconnect } = require('../utils/network');
 const { decodeBencode } = require('../utils/decoder');
+const { splitPieceHashes } = require('../utils/torrent');
 
 let incomingBuffer = Buffer.alloc(0);
 let handshakeReceived = false;
 let peerMetadataExtensionId;
+let torrent = {};
 
 function isHandshakeResponse(handshakeResponse) {
   if (!handshakeResponse || handshakeResponse.length < 68) {
@@ -34,6 +36,7 @@ function processPeerMessage(message) {
   const messageId = message.readUint8(0);
 
   console.log('messageId', messageId);
+  console.log('message', message.length);
 
   if (messageId === 20) {
     const payload = message.subarray(1);
@@ -43,18 +46,23 @@ function processPeerMessage(message) {
     if (decoded.hasOwnProperty('m')) {
       peerMetadataExtensionId = decoded.m['ut_metadata'];
       console.log(`Peer Metadata Extension ID: ${peerMetadataExtensionId}`);
+    } else if (decoded.hasOwnProperty('msg_type')) {
+      const { msg_type, piece, total_size } = decoded;
+      console.log({ msg_type, piece, total_size });
+
+      const metadataPiece = decodeBencode(message.subarray(message.length - total_size));
+      console.log(metadataPiece, JSON.stringify(metadataPiece));
+
+      const pieces = splitPieceHashes(metadataPiece.pieces);
+
+      torrent.info = {
+        length: metadataPiece.length,
+        pieceLength: metadataPiece['piece length'],
+        pieces,
+      };
     } else {
       console.log('decoded', decoded);
     }
-
-    // Tracker URL: http://bittorrent-test-tracker.codecrafters.io/announce
-    // Length: 92063
-    // Info Hash: d69f91e6b2ae4c542468d1073a71d4ea13879a7f
-    // Piece Length: 32768
-    // Piece Hashes:
-    // 6e2275e604a0766656736e81ff10b55204ad8d35
-    // e876f67a2a8886e8f36b136726c30fa29703022d
-    // f00d937a0213df1982bc8d097227ad9e909acc17
   }
 }
 
@@ -103,6 +111,17 @@ async function waitForPeerMetadataExtensionId() {
   });
 }
 
+async function waitForMetadataResponse() {
+  return new Promise((resolve) => {
+    const intervalId = setInterval(() => {
+      if (torrent.info) {
+        clearInterval(intervalId);
+        resolve();
+      }
+    }, 1000);
+  });
+}
+
 async function handleCommand(parameters) {
   // Parse the magnet link to get the tracker URL
   // Perform the tracker GET request to get a list of peers
@@ -119,6 +138,9 @@ async function handleCommand(parameters) {
   const [, magnetLink] = parameters;
   const { infoHash, trackerUrl } = parseMagnetLink(magnetLink);
   const peers = await fetchMagnetPeers(infoHash, trackerUrl);
+
+  torrent.announce = trackerUrl;
+  torrent.info_hash = infoHash;
 
   const [peer] = peers;
   let socket;
@@ -137,6 +159,24 @@ async function handleCommand(parameters) {
 
     const metadataRequest = createMetadataRequest(peerMetadataExtensionId, 0);
     socket.write(metadataRequest);
+
+    await waitForMetadataResponse();
+
+    // Tracker URL: http://bittorrent-test-tracker.codecrafters.io/announce
+    // Length: 92063
+    // Info Hash: d69f91e6b2ae4c542468d1073a71d4ea13879a7f
+    // Piece Length: 32768
+    // Piece Hashes:
+    // 6e2275e604a0766656736e81ff10b55204ad8d35
+    // e876f67a2a8886e8f36b136726c30fa29703022d
+    // f00d937a0213df1982bc8d097227ad9e909acc17
+
+    console.log(`Tracker URL: ${torrent.announce}`);
+    console.log(`Length: ${torrent.info.length}`);
+    console.log(`Info Hash: ${torrent.info_hash}`);
+    console.log(`Piece Length: ${torrent.info.pieceLength}`);
+    console.log('Piece hashes:');
+    torrent.info.pieces.forEach((piece) => console.log(piece.toString('hex')));
 
     socket.destroySoon();
   } catch (err) {
