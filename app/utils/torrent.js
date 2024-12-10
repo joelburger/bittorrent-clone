@@ -69,6 +69,11 @@ async function fetchPeers(torrent) {
     const data = await response.arrayBuffer();
 
     const result = decodeBencode(Buffer.from(data));
+
+    if (result.hasOwnProperty('failure reason')) {
+      throw new Error(`Response from ${url}: ${result['failure reason'].toString()}`);
+    }
+
     const peers = parsePeers(result.peers);
 
     console.log('peers', peers);

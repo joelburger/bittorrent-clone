@@ -69,7 +69,6 @@ async function fetchMagnetPeers(infoHash, trackerUrl) {
     const url = `${trackerUrl}?${queryParams}`;
     const response = await fetch(url);
     const data = await response.arrayBuffer();
-
     const result = decodeBencode(Buffer.from(data));
     const peers = parsePeers(result.peers);
 

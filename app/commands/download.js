@@ -14,6 +14,7 @@ const { readFile } = require('fs/promises');
 const { connect, disconnect } = require('../utils/network');
 const { writeFileSync } = require('fs');
 const { sha1Hash } = require('../utils/encoder');
+const { isHandshakeResponse } = require('../utils/handshake');
 
 const MAXIMUM_OUTGOING_BUFFER_SIZE = BLOCK_REQUEST_SIZE * 5; //  maximum of block request messages in the outgoing buffer
 
@@ -77,17 +78,6 @@ function processPeerMessage(message) {
     return;
   }
   console.warn(`Unknown message ID from peer: ${messageId}`);
-}
-
-function isHandshakeResponse(handshakeResponse) {
-  if (!handshakeResponse || handshakeResponse.length < 68) {
-    return false;
-  }
-
-  const protocolLength = handshakeResponse.readUint8(0);
-  const protocol = handshakeResponse.subarray(1, protocolLength + 1).toString();
-
-  return protocol === 'BitTorrent protocol';
 }
 
 async function waitForConnectionStatus(expectedConnectionStatus, timeout = 5000) {
