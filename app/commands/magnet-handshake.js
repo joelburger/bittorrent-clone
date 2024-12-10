@@ -63,7 +63,6 @@ async function handleCommand(parameters) {
   const [, magnetLink] = parameters;
   const { infoHash, trackerUrl } = parseMagnetLink(magnetLink);
   const peers = await fetchMagnetPeers(infoHash, trackerUrl);
-
   const [peer] = peers;
   let socket;
   try {
