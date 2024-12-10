@@ -39,6 +39,12 @@ const state = {
   },
 };
 
+function resetState() {
+  state.blocks = new Map();
+  state.incomingBuffer = Buffer.alloc(0);
+  state.outgoingBuffer = Buffer.alloc(0);
+}
+
 function processPeerMessage(message) {
   const messageId = message.readUint8(0);
 
@@ -290,11 +296,22 @@ async function handleCommand(parameters) {
 
     await sendInterestedMessage(socket);
 
-    const pieceBuffer = await downloadPiece(socket, pieceIndex);
-    validatePieceHash(pieceBuffer, state.torrent.info.splitPieces[pieceIndex]);
+    let workQueue;
+    if (command === 'magnet_download') {
+      workQueue = Array.from({ length: state.torrent.info.splitPieces.length }, (_, index) => index);
+    } else {
+      workQueue = [pieceIndex];
+    }
+    let fileBuffer = Buffer.alloc(0);
+    for (const pieceIndex of workQueue) {
+      const pieceBuffer = await downloadPiece(socket, pieceIndex);
+      validatePieceHash(pieceBuffer, state.torrent.info.splitPieces[pieceIndex]);
+      fileBuffer = Buffer.concat([fileBuffer, pieceBuffer]);
+      resetState();
+    }
 
-    console.log(`Download finished. Saving to ${outputFilePath}. Size: ${pieceBuffer.length}`);
-    writeFileSync(outputFilePath, Buffer.from(pieceBuffer));
+    console.log(`Download finished. Saving to ${outputFilePath}. Size: ${fileBuffer.length}`);
+    writeFileSync(outputFilePath, Buffer.from(fileBuffer));
   } catch (err) {
     console.error('Fatal error', err);
   } finally {

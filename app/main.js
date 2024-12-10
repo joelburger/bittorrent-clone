@@ -20,6 +20,7 @@ const handlers = {
   magnet_handshake: handleMagnetHandshake,
   magnet_info: handleMagnetInfo,
   magnet_download_piece: handleMagnetDownload,
+  magnet_download: handleMagnetDownload,
 };
 
 const parameters = process.argv.slice(2);

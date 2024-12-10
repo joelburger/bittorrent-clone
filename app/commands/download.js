@@ -33,7 +33,6 @@ const state = {
 
 function resetState() {
   state.blocks = new Map();
-  state.incomingBuffer = PeerConnectionStatus.PENDING;
   state.incomingBuffer = Buffer.alloc(0);
   state.outgoingBuffer = Buffer.alloc(0);
 }
