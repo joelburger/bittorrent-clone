@@ -5,11 +5,11 @@ const handlePeers = require('./commands/peers');
 const handleHandshake = require('./commands/handshake');
 const handleDownload = require('./commands/download');
 const handleMagnetParse = require('./commands/magnet-parse');
-const handleMagnetHandshake = require('./commands/magnet-handshake');
 const handleMagnetInfo = require('./commands/magnet-info');
 const handleMagnetDownload = require('./commands/magnet-download');
 const MagnetHandshake = require('./commands/magnet-handshake');
 const MagnetInfo = require('./commands/magnet-info');
+const MagnetDownload = require('./commands/magnet-download');
 
 const handlers = {
   decode: handleDecode,
@@ -19,9 +19,6 @@ const handlers = {
   download_piece: handleDownload,
   download: handleDownload,
   magnet_parse: handleMagnetParse,
-  magnet_info: handleMagnetInfo,
-  magnet_download_piece: handleMagnetDownload,
-  magnet_download: handleMagnetDownload,
 };
 
 const parameters = process.argv.slice(2);
@@ -33,6 +30,9 @@ if (command === 'magnet_handshake') {
 } else if (command === 'magnet_info') {
   const magnetInfo = new MagnetInfo();
   magnetInfo.handleCommand(parameters);
+} else if (command === 'magnet_download' || command === 'magnet_download_piece') {
+  const magnetDownload = new MagnetDownload();
+  magnetDownload.handleCommand(parameters);
 } else {
   const handler = handlers[command];
 
