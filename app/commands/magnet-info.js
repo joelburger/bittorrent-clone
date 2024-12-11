@@ -7,7 +7,7 @@ const {
 } = require('../utils/magnet');
 const { connect, disconnect } = require('../utils/network');
 const { decodeBencode } = require('../utils/decoder');
-const { splitPieceHashes } = require('../utils/torrent');
+const { splitPieceHashes, MessageId } = require('../utils/torrent');
 const { parseHandshake, isHandshakeResponse } = require('../utils/handshake');
 
 let incomingBuffer = Buffer.alloc(0);
@@ -21,7 +21,7 @@ function processPeerMessage(message) {
   console.log('messageId', messageId);
   console.log('message', message.length);
 
-  if (messageId === 20) {
+  if (messageId === MessageId.EXTENDED) {
     const payload = message.subarray(1);
     const dictionary = payload.subarray(1);
     const decoded = decodeBencode(dictionary);
