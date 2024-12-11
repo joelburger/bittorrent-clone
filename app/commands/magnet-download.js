@@ -65,7 +65,7 @@ function processPeerMessage(message) {
     return;
   }
 
-  if (messageId === 20) {
+  if (messageId === MessageId.EXTENDED) {
     const payload = message.subarray(1);
     const dictionary = payload.subarray(1);
     const decoded = decodeBencode(dictionary);

@@ -18,6 +18,7 @@ const MessageId = Object.freeze({
   REQUEST: 6,
   PIECE: 7,
   CANCEL: 8,
+  EXTENDED: 20,
 });
 
 function generatePeerId(length = 20) {

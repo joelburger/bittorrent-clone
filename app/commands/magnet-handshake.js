@@ -7,6 +7,7 @@ const {
 const { connect, disconnect } = require('../utils/network');
 const { decodeBencode } = require('../utils/decoder');
 const { isHandshakeResponse, parseHandshake } = require('../utils/handshake');
+const { MessageId } = require('../utils/torrent');
 
 let incomingBuffer = Buffer.alloc(0);
 let handshakeReceived = false;
@@ -14,7 +15,7 @@ let handshakeReceived = false;
 function processPeerMessage(message) {
   const messageId = message.readUint8(0);
 
-  if (messageId === 20) {
+  if (messageId === MessageId.EXTENDED) {
     const payload = message.subarray(1);
     const dictionary = payload.subarray(1);
     const decoded = decodeBencode(dictionary);
