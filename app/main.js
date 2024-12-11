@@ -9,6 +9,7 @@ const handleMagnetHandshake = require('./commands/magnet-handshake');
 const handleMagnetInfo = require('./commands/magnet-info');
 const handleMagnetDownload = require('./commands/magnet-download');
 const MagnetHandshake = require('./commands/magnet-handshake');
+const MagnetInfo = require('./commands/magnet-info');
 
 const handlers = {
   decode: handleDecode,
@@ -29,6 +30,9 @@ const [command] = parameters;
 if (command === 'magnet_handshake') {
   const magnetHandshake = new MagnetHandshake();
   magnetHandshake.handleCommand(parameters);
+} else if (command === 'magnet_info') {
+  const magnetInfo = new MagnetInfo();
+  magnetInfo.handleCommand(parameters);
 } else {
   const handler = handlers[command];
 

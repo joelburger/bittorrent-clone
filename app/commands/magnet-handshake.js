@@ -42,7 +42,6 @@ class MagnetHandshake {
   }
 }
 
-// Apply mixins to MagnetHandshake class
 Object.assign(MagnetHandshake.prototype, HandshakeMixin);
 
 module.exports = MagnetHandshake;
