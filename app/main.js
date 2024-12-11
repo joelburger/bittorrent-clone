@@ -8,6 +8,7 @@ const handleMagnetParse = require('./commands/magnet-parse');
 const handleMagnetHandshake = require('./commands/magnet-handshake');
 const handleMagnetInfo = require('./commands/magnet-info');
 const handleMagnetDownload = require('./commands/magnet-download');
+const MagnetHandshake = require('./commands/magnet-handshake');
 
 const handlers = {
   decode: handleDecode,
@@ -17,7 +18,6 @@ const handlers = {
   download_piece: handleDownload,
   download: handleDownload,
   magnet_parse: handleMagnetParse,
-  magnet_handshake: handleMagnetHandshake,
   magnet_info: handleMagnetInfo,
   magnet_download_piece: handleMagnetDownload,
   magnet_download: handleMagnetDownload,
@@ -26,14 +26,19 @@ const handlers = {
 const parameters = process.argv.slice(2);
 const [command] = parameters;
 
-const handler = handlers[command];
+if (command === 'magnet_handshake') {
+  const magnetHandshake = new MagnetHandshake();
+  magnetHandshake.handleCommand(parameters);
+} else {
+  const handler = handlers[command];
 
-if (!handler) {
-  throw new Error(`Unknown command ${command}`);
-}
+  if (!handler) {
+    throw new Error(`Unknown command ${command}`);
+  }
 
-try {
-  handler(parameters);
-} catch (err) {
-  console.error('Fatal error', err);
+  try {
+    handler(parameters);
+  } catch (err) {
+    console.error('Fatal error', err);
+  }
 }
