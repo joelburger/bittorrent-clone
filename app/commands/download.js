@@ -51,10 +51,10 @@ function dataEventHandler(chunk) {
     const messageLength = state.incomingBuffer.readUInt32BE(0); // Read the 4-byte length prefix
     if (state.incomingBuffer.length < messageLength + 4) break; // Wait for more data
 
-    const message = state.incomingBuffer.slice(4, 4 + messageLength); // Extract complete message
+    const message = state.incomingBuffer.subarray(4, 4 + messageLength); // Extract complete message
     processPeerMessage(message);
 
-    state.incomingBuffer = state.incomingBuffer.slice(4 + messageLength); // Remove processed message
+    state.incomingBuffer = state.incomingBuffer.subarray(4 + messageLength); // Remove processed message
   }
 }
 

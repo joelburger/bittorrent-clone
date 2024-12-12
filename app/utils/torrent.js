@@ -159,7 +159,7 @@ function parsePeerMessage(message) {
 function parseBlockPayload(blockPayload) {
   const pieceIndex = blockPayload.readUInt32BE(0);
   const blockOffset = blockPayload.readUInt32BE(4);
-  const block = blockPayload.slice(8);
+  const block = blockPayload.subarray(8);
 
   return { pieceIndex, blockOffset, block };
 }

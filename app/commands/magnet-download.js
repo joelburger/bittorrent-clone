@@ -105,7 +105,7 @@ class MagnetDownload {
         const { supportsExtension, peerId } = parseHandshake(this.incomingBuffer);
 
         console.log(`Peer ID: ${peerId}`);
-        this.incomingBuffer = this.incomingBuffer.slice(68);
+        this.incomingBuffer = this.incomingBuffer.subarray(68);
         this.connectionStatus = PeerConnectionStatus.HANDSHAKE_RECEIVED;
         continue;
       }
@@ -113,9 +113,9 @@ class MagnetDownload {
       const messageLength = this.incomingBuffer.readUInt32BE(0);
       if (this.incomingBuffer.length < messageLength + 4) break;
 
-      const message = this.incomingBuffer.slice(4, 4 + messageLength);
+      const message = this.incomingBuffer.subarray(4, 4 + messageLength);
       this.processPeerMessage(message);
-      this.incomingBuffer = this.incomingBuffer.slice(4 + messageLength);
+      this.incomingBuffer = this.incomingBuffer.subarray(4 + messageLength);
     }
   }
 
