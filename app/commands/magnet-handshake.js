@@ -5,9 +5,6 @@ const {
   createExtensionHandshakeRequest,
 } = require('../utils/magnet');
 const { connect, disconnect } = require('../utils/network');
-const { decodeBencode } = require('../utils/decoder');
-const { isHandshakeResponse, parseHandshake } = require('../utils/handshake');
-const { MessageId } = require('../utils/torrent');
 const HandshakeMixin = require('../mixins/handshake-mixin');
 
 class MagnetHandshake {

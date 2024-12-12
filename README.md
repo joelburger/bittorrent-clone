@@ -1,34 +1,69 @@
-[![progress-banner](https://backend.codecrafters.io/progress/bittorrent/0a9b5eba-6f4f-42d1-824c-18127cd31354)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# BitTorrent Client - CodeCrafters Challenge
 
-This is a starting point for JavaScript solutions to the
-["Build Your Own BitTorrent" Challenge](https://app.codecrafters.io/courses/bittorrent/overview).
+## Overview
 
-In this challenge, you’ll build a BitTorrent client that's capable of parsing a
-.torrent file and downloading a file from a peer. Along the way, we’ll learn
-about how torrent files are structured, HTTP trackers, BitTorrent’s Peer
-Protocol, pipelining and more.
+This project is a simplified clone of a BitTorrent client, developed as part of the CodeCrafters Challenge. It includes functionalities for parsing magnet links, fetching peer information, and downloading files using the BitTorrent protocol.
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+## Features
 
-# Passing the first stage
+- Parse magnet links to extract torrent metadata.
+- Fetch peer information from trackers.
+- Perform handshakes with peers.
+- Download files from peers.
+- Validate downloaded pieces using SHA-1 hash.
 
-The entry point for your BitTorrent implementation is in `app/main.js`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
+## Installation
 
+ Install dependencies:
+   ```sh
+   npm install
+   ```
+
+## Usage
+
+### Commands
+
+- `decode`: Decode a torrent file.
+- `info`: Display information about a torrent file.
+- `peers`: Fetch and display peer information.
+- `handshake`: Perform a handshake with a peer.
+- `download_piece`: Download a specific piece from a torrent.
+- `download`: Download a complete file from a torrent.
+- `magnet_parse`: Parse a magnet link.
+- `magnet_handshake`: Perform a handshake using a magnet link.
+- `magnet_info`: Fetch and display information using a magnet link.
+- `magnet_download`: Download a file using a magnet link.
+
+### Examples
+
+#### Decode a Torrent File
 ```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+node app/main.js decode path/to/torrent/file.torrent
 ```
 
-Time to move on to the next stage!
+#### Fetch Peer Information
+```sh
+node app/main.js peers path/to/torrent/file.torrent
+```
 
-# Stage 2 & beyond
+#### Download a File
+```sh
+node app/main.js download path/to/torrent/file.torrent output/file/path
+```
 
-Note: This section is for stages 2 and beyond.
+#### Parse a Magnet Link
+```sh
+node app/main.js magnet_parse "magnet:?xt=urn:btih:..."
+```
 
-1. Ensure you have `node (21)` installed locally
-1. Run `./your_bittorrent.sh` to run your program, which is implemented in
-   `app/main.js`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+#### Download a File Using a Magnet Link
+```sh
+node app/main.js magnet_download "magnet:?xt=urn:btih:..." output/file/path
+```
+
+## Project Structure
+
+- `app/commands/`: Contains command handlers for various operations.
+- `app/utils/`: Utility functions for handling network, torrent, and magnet operations.
+- `app/main.js`: Entry point for the application.
+

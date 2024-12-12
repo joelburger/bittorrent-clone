@@ -6,9 +6,6 @@ const {
   createMetadataRequest,
 } = require('../utils/magnet');
 const { connect, disconnect } = require('../utils/network');
-const { decodeBencode } = require('../utils/decoder');
-const { splitPieceHashes, MessageId } = require('../utils/torrent');
-const { parseHandshake, isHandshakeResponse } = require('../utils/handshake');
 const HandshakeMixin = require('../mixins/handshake-mixin');
 
 class MagnetInfo {
